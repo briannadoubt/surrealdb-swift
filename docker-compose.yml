@@ -1,0 +1,18 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: surrealdb-test
+    ports:
+      - "8000:8000"
+    command:
+      - start
+      - --log=trace
+      - --user=root
+      - --pass=root
+      - memory
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

@@ -1,0 +1,24 @@
+import Foundation
+
+/// A transport mechanism for communicating with SurrealDB.
+///
+/// Implementations include WebSocket and HTTP transports.
+@SurrealActor
+public protocol Transport: Sendable {
+    /// Establishes a connection to the database.
+    func connect() async throws
+
+    /// Closes the connection to the database.
+    func disconnect() async throws
+
+    /// Sends a JSON-RPC request and returns the response.
+    func send(_ request: JSONRPCRequest) async throws -> JSONRPCResponse
+
+    /// Returns whether the transport is currently connected.
+    var isConnected: Bool { get async }
+
+    /// A stream of live query notifications.
+    ///
+    /// For transports that don't support live queries (like HTTP), this returns an empty stream.
+    var notifications: AsyncStream<LiveQueryNotification> { get async }
+}
