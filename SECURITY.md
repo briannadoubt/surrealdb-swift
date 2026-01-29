@@ -1,12 +1,5 @@
 # Security Policy
 
-## Supported Versions
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.0.x   | ✅ Full support    |
-| 1.0.x   | ⚠️ Critical fixes only |
-
 ## Reporting Vulnerabilities
 
 We take security seriously. If you discover a security vulnerability, please follow these steps:
@@ -17,15 +10,10 @@ We take security seriously. If you discover a security vulnerability, please fol
 
 Instead, report vulnerabilities through:
 
-1. **GitHub Security Advisories** (preferred):
-   - Navigate to the [Security tab](https://github.com/yourusername/surrealdb-swift/security)
-   - Click "Report a vulnerability"
-   - Provide detailed information about the vulnerability
-
-2. **Email**:
-   - Send to: security@example.com
-   - Include "SECURITY" in the subject line
-   - Provide detailed reproduction steps
+**GitHub Security Advisories** (preferred):
+- Navigate to the [Security tab](https://github.com/briannadoubt/surrealdb-swift/security)
+- Click "Report a vulnerability"
+- Provide detailed information about the vulnerability
 
 ### What to Include
 
@@ -47,14 +35,15 @@ When reporting a vulnerability, please include:
   - Medium: 30-90 days
   - Low: Best effort
 
-## Known Security Considerations
+## Security Features
 
-### v2.0+ Security Features
+### Built-In Protection
 
 1. **SQL Injection Prevention**
    - All query values are automatically parameterized
    - Identifier validation prevents injection through table/field names
    - No unsafe string interpolation in queries
+   - Type-safe query building with `ComparisonOperator` enum
 
 2. **Token Storage**
    - Tokens stored in memory only
@@ -64,17 +53,7 @@ When reporting a vulnerability, please include:
 3. **Transport Security**
    - Supports TLS for both WebSocket (`wss://`) and HTTP (`https://`)
    - Always use secure transports in production
-
-### v1.0 Security Issues
-
-Version 1.0.x contains known SQL injection vulnerabilities in the QueryBuilder:
-
-```swift
-// ❌ VULNERABLE (v1.0): String interpolation allows injection
-db.query().where("age >= \(userInput)")  // DO NOT USE
-```
-
-**Recommendation**: Upgrade to v2.0+ immediately for production use.
+   - Configurable timeouts prevent resource exhaustion
 
 ## Security Best Practices
 

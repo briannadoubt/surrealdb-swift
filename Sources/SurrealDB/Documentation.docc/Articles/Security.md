@@ -47,18 +47,21 @@ let results = try await db.query()
     .fetch()
 ```
 
-### What Was Fixed in v2.0
+### Security by Design
 
-Previous versions allowed unsafe string interpolation:
+The SurrealDB Swift client is designed with security as a core principle:
+
+- **No string interpolation**: Query values are always parameterized automatically
+- **Type-safe operators**: `ComparisonOperator` enum prevents operator injection
+- **Validated identifiers**: All table and field names are validated before use
+- **Compile-time safety**: Swift's type system catches many errors before runtime
 
 ```swift
-// ❌ UNSAFE (v1.0): Direct string interpolation
-let users = try await db.query()
-    .where("age >= 18")  // Vulnerable to injection
+// ✅ This is the ONLY way to build queries - secure by default
+let results = try await db.query()
+    .where(field: "status", op: .equal, value: .string(userInput))
     .fetch()
 ```
-
-Version 2.0 eliminates this by requiring type-safe parameter binding for all values.
 
 ## Input Validation
 

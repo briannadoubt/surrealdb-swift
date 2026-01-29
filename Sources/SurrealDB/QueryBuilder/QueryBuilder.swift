@@ -74,6 +74,9 @@ public struct QueryBuilder: Sendable {
     /// - Returns: A new QueryBuilder with the WHERE clause added.
     /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
     ///
+    /// - Note: Multiple calls to `where()` or `whereRaw()` will add additional WHERE clauses
+    ///   to the query. For multiple conditions, use `whereRaw()` with logical operators (AND/OR).
+    ///
     /// Example:
     /// ```swift
     /// let adults = try await db.query()

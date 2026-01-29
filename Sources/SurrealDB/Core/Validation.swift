@@ -2,6 +2,13 @@ import Foundation
 
 /// Validates SurrealDB identifiers (table names, field names).
 public struct SurrealValidator: Sendable {
+    /// Regex pattern for valid unquoted identifiers.
+    /// Matches: alphanumeric with underscores, must start with letter/underscore.
+    private static let identifierRegex: NSRegularExpression = {
+        // This pattern is a compile-time constant and should never fail
+        try! NSRegularExpression(pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$")
+    }()
+
     /// Validates a table name.
     public static func validateTableName(_ name: String) throws {
         try validateIdentifier(name, context: "table name")
@@ -36,12 +43,10 @@ public struct SurrealValidator: Sendable {
             return
         }
 
-        // Unquoted identifiers: alphanumeric, underscore, must start with letter/underscore
-        let pattern = "^[a-zA-Z_][a-zA-Z0-9_]*$"
-        let regex = try! NSRegularExpression(pattern: pattern)
+        // Validate unquoted identifiers using cached regex
         let range = NSRange(identifier.startIndex..., in: identifier)
 
-        guard regex.firstMatch(in: identifier, range: range) != nil else {
+        guard identifierRegex.firstMatch(in: identifier, range: range) != nil else {
             throw SurrealError.invalidQuery(
                 "Invalid \(context): '\(identifier)'. Must be alphanumeric with underscores, " +
                 "start with letter/underscore, or be backtick-quoted like `\(identifier)`."
