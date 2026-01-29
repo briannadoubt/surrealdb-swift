@@ -8,16 +8,22 @@ final class MockTransport: Transport {
     var responseQueue: [String: JSONRPCResponse] = [:]
     var defaultResult: SurrealValue = .null
     var _isConnected: Bool = false
+    private let transportConfig: TransportConfig
 
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
     private let notificationStream: AsyncStream<LiveQueryNotification>
 
-    nonisolated init() {
+    nonisolated init(config: TransportConfig = .default) {
+        self.transportConfig = config
         var cont: AsyncStream<LiveQueryNotification>.Continuation?
         self.notificationStream = AsyncStream { continuation in
             cont = continuation
         }
         self.notificationContinuation = cont
+    }
+
+    var config: TransportConfig {
+        get async { transportConfig }
     }
 
     func connect() async throws {

@@ -190,7 +190,7 @@ final class IntegrationTests: XCTestCase {
             .query()
             .select("name", "age")
             .from("users")
-            .where("age >= 25")
+            .where(field: "age", op: .greaterThanOrEqual, value: .int(25))
             .orderBy("age")
             .fetch()
 

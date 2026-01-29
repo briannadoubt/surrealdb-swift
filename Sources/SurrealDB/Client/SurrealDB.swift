@@ -27,17 +27,29 @@ public actor SurrealDB {
     /// - Parameters:
     ///   - url: The URL of the SurrealDB server.
     ///   - transportType: The transport type to use (`.websocket` or `.http`).
-    public init(url: String, transportType: TransportType = .websocket) throws {
+    ///   - config: Transport configuration including timeouts and reconnection policy.
+    public init(
+        url: String,
+        transportType: TransportType = .websocket,
+        config: TransportConfig = .default
+    ) throws {
         guard let parsedURL = URL(string: url) else {
             throw SurrealError.connectionError("Invalid URL: \(url)")
         }
 
         switch transportType {
         case .websocket:
-            self.transport = WebSocketTransport(url: parsedURL)
+            self.transport = WebSocketTransport(url: parsedURL, config: config)
         case .http:
-            self.transport = HTTPTransport(url: parsedURL)
+            self.transport = HTTPTransport(url: parsedURL, config: config)
         }
+    }
+
+    /// Internal initializer for testing purposes.
+    ///
+    /// - Parameter transport: The transport to use for this client.
+    internal init(transport: Transport) {
+        self.transport = transport
     }
 
     /// The type of transport to use.
@@ -373,7 +385,7 @@ public actor SurrealDB {
 
     internal func rpc(method: String, params: [SurrealValue]?) async throws -> SurrealValue {
         let request = JSONRPCRequest(
-            id: UUID().uuidString,
+            id: IDGenerator.generateRequestID(),
             method: method,
             params: params
         )

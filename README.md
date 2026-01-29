@@ -11,6 +11,9 @@ A native Swift client for [SurrealDB](https://surrealdb.com), the ultimate multi
 - ✅ **Type-safe operations** - Leverage Swift's Codable for automatic encoding/decoding
 - ✅ **Real-time live queries** - Subscribe to database changes in real-time
 - ✅ **Fluent query builder** - Build SurrealQL queries with a type-safe API
+- ✅ **SQL injection prevention** - Automatic parameter binding for all queries
+- ✅ **Automatic reconnection** - Configurable exponential backoff on connection loss
+- ✅ **Timeout configuration** - Fine-grained control over request and connection timeouts
 - ✅ **Full SurrealQL support** - Execute any SurrealQL query directly
 - ✅ **Swift 6 concurrency** - Built with modern Swift concurrency from the ground up
 - ✅ **Cross-platform** - Supports all Apple platforms and Linux
@@ -29,7 +32,7 @@ Add SurrealDB to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/surrealdb-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/briannadoubt/surrealdb-swift.git", branch: "main")
 ]
 ```
 
@@ -63,12 +66,12 @@ let created: User = try await db.create("users", data: newUser)
 // Query records
 let users: [User] = try await db.select("users")
 
-// Use the query builder
+// Use the query builder with type-safe parameter binding
 let adults: [User] = try await db
     .query()
     .select("name", "email")
     .from("users")
-    .where("age >= 18")
+    .where(field: "age", op: .greaterThanOrEqual, value: .int(18))
     .orderBy("name")
     .limit(10)
     .fetch()
@@ -94,6 +97,66 @@ Task {
 // Clean up
 try await db.disconnect()
 ```
+
+## Configuration & Security
+
+### Timeout and Reconnection
+
+Configure timeouts and automatic reconnection:
+
+```swift
+let config = TransportConfig(
+    requestTimeout: 30.0,      // 30 seconds per request
+    connectionTimeout: 10.0,   // 10 seconds to establish connection
+    reconnectionPolicy: .exponentialBackoff(
+        initialDelay: 1.0,
+        maxDelay: 60.0,
+        multiplier: 2.0,
+        maxAttempts: 10
+    )
+)
+
+let db = try SurrealDB(url: "wss://production.example.com/rpc", config: config)
+```
+
+### Reconnection Policies
+
+```swift
+// Never reconnect
+.reconnectionPolicy = .never
+
+// Constant delay between attempts
+.reconnectionPolicy = .constant(delay: 5.0, maxAttempts: 5)
+
+// Exponential backoff (recommended for production)
+.reconnectionPolicy = .exponentialBackoff()
+
+// Always reconnect (use with caution)
+.reconnectionPolicy = .alwaysReconnect()
+```
+
+### Security Best Practices
+
+All query values are automatically parameterized to prevent SQL injection:
+
+```swift
+// ✅ SAFE: User input is automatically parameterized
+let username = getUserInput()
+let user: User? = try await db.query()
+    .select("*")
+    .from("users")
+    .where(field: "username", op: .equal, value: .string(username))
+    .fetchOne()
+```
+
+**Production Checklist**:
+- ✅ Always use secure transports (`wss://`, `https://`) in production
+- ✅ Configure appropriate timeouts for your use case
+- ✅ Enable automatic reconnection for reliability
+- ✅ Never disable TLS verification
+- ✅ Use environment-specific configurations
+
+See [Security.md](./Sources/SurrealDB/Documentation.docc/Articles/Security.md) for comprehensive security guidelines.
 
 ## Documentation
 
