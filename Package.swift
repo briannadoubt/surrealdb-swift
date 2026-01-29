@@ -21,10 +21,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "SurrealDB",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
-            ]
+            name: "SurrealDB"
         ),
         .testTarget(
             name: "SurrealDBTests",
