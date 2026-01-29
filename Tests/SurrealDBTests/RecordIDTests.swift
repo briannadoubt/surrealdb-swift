@@ -1,66 +1,67 @@
-import XCTest
+import Testing
+import Foundation
 @testable import SurrealDB
 
-final class RecordIDTests: XCTestCase {
-    func testParseSimpleRecordID() throws {
+@Suite("RecordID")
+struct RecordIDTests {
+    @Test("Parse simple RecordID")
+    func parseSimpleRecordID() throws {
         let recordID = try RecordID(parsing: "users:john")
 
-        XCTAssertEqual(recordID.table, "users")
-        XCTAssertEqual(recordID.id, "john")
-        XCTAssertEqual(recordID.toString(), "users:john")
+        #expect(recordID.table == "users")
+        #expect(recordID.id == "john")
+        #expect(recordID.toString() == "users:john")
     }
 
-    func testParseNumericID() throws {
+    @Test("Parse numeric ID")
+    func parseNumericID() throws {
         let recordID = try RecordID(parsing: "posts:123")
 
-        XCTAssertEqual(recordID.table, "posts")
-        XCTAssertEqual(recordID.id, "123")
+        #expect(recordID.table == "posts")
+        #expect(recordID.id == "123")
     }
 
-    func testParseUUIDFormat() throws {
+    @Test("Parse UUID format")
+    func parseUUIDFormat() throws {
         let uuid = "8c5ccf89-6c3c-4d11-8d7f-9ed5a3b95f6e"
         let recordID = try RecordID(parsing: "users:⟨\(uuid)⟩")
 
-        XCTAssertEqual(recordID.table, "users")
-        XCTAssertEqual(recordID.id, "⟨\(uuid)⟩")
+        #expect(recordID.table == "users")
+        #expect(recordID.id == "⟨\(uuid)⟩")
     }
 
-    func testParseIDWithColons() throws {
+    @Test("Parse ID with colons")
+    func parseIDWithColons() throws {
         // IDs can contain colons after the first separator
         let recordID = try RecordID(parsing: "events:2024:01:15")
 
-        XCTAssertEqual(recordID.table, "events")
-        XCTAssertEqual(recordID.id, "2024:01:15")
+        #expect(recordID.table == "events")
+        #expect(recordID.id == "2024:01:15")
     }
 
-    func testInvalidRecordIDMissingColon() {
-        XCTAssertThrowsError(try RecordID(parsing: "users")) { error in
-            guard case SurrealError.invalidRecordID = error else {
-                XCTFail("Expected invalidRecordID error")
-                return
-            }
+    @Test("Invalid RecordID - missing colon")
+    func invalidRecordIDMissingColon() {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+            try RecordID(parsing: "users")
         }
     }
 
-    func testInvalidRecordIDEmptyTable() {
-        XCTAssertThrowsError(try RecordID(parsing: ":john")) { error in
-            guard case SurrealError.invalidRecordID = error else {
-                XCTFail("Expected invalidRecordID error")
-                return
-            }
+    @Test("Invalid RecordID - empty table")
+    func invalidRecordIDEmptyTable() {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+            try RecordID(parsing: ":john")
         }
     }
 
-    func testInvalidRecordIDEmptyID() {
-        XCTAssertThrowsError(try RecordID(parsing: "users:")) { error in
-            guard case SurrealError.invalidRecordID = error else {
-                XCTFail("Expected invalidRecordID error")
-                return
-            }
+    @Test("Invalid RecordID - empty ID")
+    func invalidRecordIDEmptyID() {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+            try RecordID(parsing: "users:")
         }
     }
 
-    func testRecordIDCodable() throws {
+    @Test("RecordID is Codable")
+    func recordIDCodable() throws {
         let recordID = RecordID(table: "users", id: "john")
 
         let encoder = JSONEncoder()
@@ -69,19 +70,21 @@ final class RecordIDTests: XCTestCase {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(RecordID.self, from: data)
 
-        XCTAssertEqual(decoded, recordID)
+        #expect(decoded == recordID)
     }
 
-    func testRecordIDEquality() {
+    @Test("RecordID equality")
+    func recordIDEquality() {
         let id1 = RecordID(table: "users", id: "john")
         let id2 = RecordID(table: "users", id: "john")
         let id3 = RecordID(table: "users", id: "jane")
 
-        XCTAssertEqual(id1, id2)
-        XCTAssertNotEqual(id1, id3)
+        #expect(id1 == id2)
+        #expect(id1 != id3)
     }
 
-    func testRecordIDHashable() {
+    @Test("RecordID is Hashable")
+    func recordIDHashable() {
         let id1 = RecordID(table: "users", id: "john")
         let id2 = RecordID(table: "users", id: "john")
 
@@ -89,6 +92,6 @@ final class RecordIDTests: XCTestCase {
         set.insert(id1)
         set.insert(id2)
 
-        XCTAssertEqual(set.count, 1)
+        #expect(set.count == 1)
     }
 }
