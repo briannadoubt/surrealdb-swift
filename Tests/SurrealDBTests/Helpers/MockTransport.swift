@@ -45,11 +45,29 @@ final class MockTransport: Transport {
             return response
         }
 
-        // Return default success response
+        // Check if there's a wildcard response queued (id: "*")
+        if let response = responseQueue["*"] {
+            return JSONRPCResponse(
+                jsonrpc: response.jsonrpc,
+                id: request.id,
+                result: response.result,
+                error: response.error
+            )
+        }
+
+        // Return appropriate default based on method
+        let result: SurrealValue
+        if request.method == "query" {
+            // Query responses should be an array of result objects
+            result = .array([.object(["status": .string("OK"), "result": .array([])])])
+        } else {
+            result = defaultResult
+        }
+
         return JSONRPCResponse(
             jsonrpc: "2.0",
             id: request.id,
-            result: defaultResult,
+            result: result,
             error: nil
         )
     }
