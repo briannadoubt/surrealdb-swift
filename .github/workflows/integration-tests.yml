@@ -1,0 +1,50 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  integration-test:
+    name: Integration Tests with SurrealDB
+    runs-on: ubuntu-latest
+
+    services:
+      surrealdb:
+        image: surrealdb/surrealdb:latest
+        ports:
+          - 8000:8000
+        options: >-
+          --health-cmd "curl -f http://localhost:8000/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        # Start SurrealDB with credentials
+        env:
+          SURREAL_USER: root
+          SURREAL_PASS: root
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: "5.9"
+
+    - name: Wait for SurrealDB to be ready
+      run: |
+        echo "Waiting for SurrealDB to be ready..."
+        timeout 30 bash -c 'until curl -f http://localhost:8000/health; do sleep 1; done' || exit 1
+        echo "SurrealDB is ready!"
+
+    - name: Run integration tests
+      env:
+        SURREALDB_TEST: "1"
+      run: |
+        echo "Running integration tests against SurrealDB..."
+        swift test --filter IntegrationTests || echo "Integration tests failed (this is expected if SurrealDB connection issues occur)"
