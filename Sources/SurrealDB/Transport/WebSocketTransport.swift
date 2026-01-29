@@ -3,9 +3,11 @@ import Foundation
 /// WebSocket-based transport for SurrealDB.
 ///
 /// This transport maintains a persistent connection and supports live queries.
+/// Supports automatic reconnection with configurable policies.
 @SurrealActor
 public final class WebSocketTransport: Transport, Sendable {
     private let url: URL
+    private let transportConfig: TransportConfig
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession
 
@@ -20,17 +22,23 @@ public final class WebSocketTransport: Transport, Sendable {
     private let notificationStream: AsyncStream<LiveQueryNotification>
 
     private var receiveTask: Task<Void, Never>?
+    private var reconnectionTask: Task<Void, Never>?
     private var _isConnected: Bool = false
+    private var reconnectionAttempts: Int = 0
+    private var shouldReconnect: Bool = true
 
     /// Creates a new WebSocket transport.
     ///
-    /// - Parameter url: The WebSocket URL of the SurrealDB server (e.g., "ws://localhost:8000/rpc").
-    nonisolated public init(url: URL) {
+    /// - Parameters:
+    ///   - url: The WebSocket URL of the SurrealDB server (e.g., "ws://localhost:8000/rpc").
+    ///   - config: Transport configuration including timeouts and reconnection policy.
+    nonisolated public init(url: URL, config: TransportConfig = .default) {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         if components.path.isEmpty || components.path == "/" {
             components.path = "/rpc"
         }
         self.url = components.url!
+        self.transportConfig = config
         self.session = URLSession(configuration: .default)
 
         // Create the notification stream with a separate continuation
@@ -41,23 +49,37 @@ public final class WebSocketTransport: Transport, Sendable {
         self.notificationContinuation = cont
     }
 
+    public var config: TransportConfig {
+        get async { transportConfig }
+    }
+
     public func connect() async throws {
         guard webSocketTask == nil else {
             return // Already connected
         }
 
+        // Reset reconnection state
+        shouldReconnect = true
+        reconnectionAttempts = 0
+
+        // Create and start WebSocket connection
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
         _isConnected = true
 
         // Start receiving messages
-        receiveTask = Task {
-            await receiveMessages()
+        receiveTask = Task { @SurrealActor in
+            await self.receiveMessages()
         }
     }
 
     public func disconnect() async throws {
         _isConnected = false
+        shouldReconnect = false
+
+        // Cancel reconnection task
+        reconnectionTask?.cancel()
+        reconnectionTask = nil
 
         // Cancel receive task
         receiveTask?.cancel()
@@ -92,7 +114,8 @@ public final class WebSocketTransport: Transport, Sendable {
 
         let message = URLSessionWebSocketTask.Message.data(data)
 
-        // Send and wait for response using continuation
+        // Send and wait for response
+        // Note: Timeout is handled by URLSession configuration
         return try await withCheckedThrowingContinuation { continuation in
             pendingRequests[request.id] = continuation
 
@@ -147,6 +170,11 @@ public final class WebSocketTransport: Transport, Sendable {
                 }
                 pendingRequests.removeAll()
 
+                // Attempt reconnection if enabled
+                if shouldReconnect {
+                    await attemptReconnection()
+                }
+
                 break
             }
         }
@@ -169,4 +197,96 @@ public final class WebSocketTransport: Transport, Sendable {
 
         // Unknown message format - ignore
     }
+
+    // MARK: - Reconnection
+
+    private func attemptReconnection() async {
+        switch transportConfig.reconnectionPolicy {
+        case .never:
+            return
+
+        case .constant(let delay, let maxAttempts):
+            await reconnectWithConstantDelay(delay: delay, maxAttempts: maxAttempts)
+
+        case .exponentialBackoff(let initial, let max, let multiplier, let maxAttempts):
+            await reconnectWithExponentialBackoff(
+                initialDelay: initial,
+                maxDelay: max,
+                multiplier: multiplier,
+                maxAttempts: maxAttempts
+            )
+
+        case .alwaysReconnect(let initial, let max, let multiplier):
+            await reconnectWithExponentialBackoff(
+                initialDelay: initial,
+                maxDelay: max,
+                multiplier: multiplier,
+                maxAttempts: nil
+            )
+        }
+    }
+
+    private func reconnectWithConstantDelay(delay: TimeInterval, maxAttempts: Int) async {
+        for attempt in 1...maxAttempts {
+            guard shouldReconnect else { return }
+
+            reconnectionAttempts = attempt
+
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard shouldReconnect else { return }
+
+                // Reset state
+                webSocketTask = nil
+                try await connect()
+
+                // Success - reset attempts
+                reconnectionAttempts = 0
+                return
+            } catch {
+                if attempt == maxAttempts {
+                    return
+                }
+            }
+        }
+    }
+
+    private func reconnectWithExponentialBackoff(
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval,
+        multiplier: Double,
+        maxAttempts: Int?
+    ) async {
+        reconnectionAttempts = 0
+        var currentDelay = initialDelay
+
+        while shouldReconnect {
+            guard maxAttempts == nil || reconnectionAttempts < maxAttempts! else {
+                return
+            }
+
+            reconnectionAttempts += 1
+
+            do {
+                try await Task.sleep(nanoseconds: UInt64(currentDelay * 1_000_000_000))
+                guard shouldReconnect else { return }
+
+                // Reset state
+                webSocketTask = nil
+                try await connect()
+
+                // Success - reset attempts
+                reconnectionAttempts = 0
+                return
+            } catch {
+                // Exponential backoff
+                currentDelay = min(currentDelay * multiplier, maxDelay)
+
+                if let max = maxAttempts, reconnectionAttempts >= max {
+                    return
+                }
+            }
+        }
+    }
+
 }

@@ -84,7 +84,14 @@ extension RecordID: CustomStringConvertible {
 
 extension RecordID: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        // Force-try for string literals - caller should ensure valid format
-        try! self.init(parsing: value)
+        do {
+            try self.init(parsing: value)
+        } catch {
+            fatalError(
+                "Invalid RecordID literal '\(value)': \(error)\n" +
+                "Note: String literals must be valid at compile time. " +
+                "For runtime values, use RecordID(parsing:) which returns a Result."
+            )
+        }
     }
 }

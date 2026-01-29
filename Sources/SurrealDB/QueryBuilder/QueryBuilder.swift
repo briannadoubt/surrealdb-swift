@@ -2,7 +2,8 @@ import Foundation
 
 /// A fluent query builder for SurrealQL.
 ///
-/// The query builder provides a type-safe, ergonomic way to construct SurrealQL queries.
+/// The query builder provides a type-safe, ergonomic way to construct SurrealQL queries
+/// with automatic parameter binding to prevent SQL injection.
 ///
 /// Example:
 /// ```swift
@@ -10,7 +11,7 @@ import Foundation
 ///     .query()
 ///     .select("name", "email")
 ///     .from("users")
-///     .where("age >= 18")
+///     .where(field: "age", op: .greaterThanOrEqual, value: .int(18))
 ///     .orderBy("name")
 ///     .limit(10)
 ///     .fetch()
@@ -35,13 +36,25 @@ public struct QueryBuilder: Sendable {
     // MARK: - SELECT
 
     /// Starts a SELECT query.
-    public func select(_ fields: String...) -> QueryBuilder {
+    ///
+    /// - Parameter fields: Field names to select. Use "*" or pass no arguments to select all fields.
+    /// - Returns: A new QueryBuilder with the SELECT clause added.
+    /// - Throws: `SurrealError.invalidQuery` if any field name is invalid.
+    public func select(_ fields: String...) throws -> QueryBuilder {
+        for field in fields where field != "*" {
+            try SurrealValidator.validateFieldName(field)
+        }
         let fieldsStr = fields.isEmpty ? "*" : fields.joined(separator: ", ")
         return updated(query: "SELECT \(fieldsStr)")
     }
 
     /// Specifies the table to select from.
-    public func from(_ table: String) -> QueryBuilder {
+    ///
+    /// - Parameter table: The table name.
+    /// - Returns: A new QueryBuilder with the FROM clause added.
+    /// - Throws: `SurrealError.invalidQuery` if the table name is invalid.
+    public func from(_ table: String) throws -> QueryBuilder {
+        try SurrealValidator.validateTableName(table)
         return updated(query: query + " FROM \(table)")
     }
 
@@ -50,13 +63,79 @@ public struct QueryBuilder: Sendable {
         return updated(query: query + " FROM \(recordId.toString())")
     }
 
-    /// Adds a WHERE clause.
-    public func `where`(_ condition: String) -> QueryBuilder {
-        return updated(query: query + " WHERE \(condition)")
+    /// Type-safe WHERE clause with parameter binding.
+    ///
+    /// This method automatically parameterizes values to prevent SQL injection.
+    ///
+    /// - Parameters:
+    ///   - field: The field name to filter on. Must be a valid identifier.
+    ///   - op: The comparison operator to use.
+    ///   - value: The value to compare against. Automatically parameterized.
+    /// - Returns: A new QueryBuilder with the WHERE clause added.
+    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
+    ///
+    /// - Note: Multiple calls to `where()` or `whereRaw()` will add additional WHERE clauses
+    ///   to the query. For multiple conditions, use `whereRaw()` with logical operators (AND/OR).
+    ///
+    /// Example:
+    /// ```swift
+    /// let adults = try await db.query()
+    ///     .select("name")
+    ///     .from("users")
+    ///     .where(field: "age", op: .greaterThanOrEqual, value: .int(18))
+    ///     .fetch()
+    /// ```
+    public func `where`(field: String, op: ComparisonOperator, value: SurrealValue) throws -> QueryBuilder {
+        try SurrealValidator.validateFieldName(field)
+        let binding = IDGenerator.generateBindingID()
+        var newBindings = bindings
+        newBindings[binding] = value
+        return QueryBuilder(
+            client: client,
+            query: query + " WHERE \(field) \(op.rawValue) $\(binding)",
+            bindings: newBindings
+        )
+    }
+
+    /// For complex conditions, use raw query with explicit variables.
+    ///
+    /// - Parameters:
+    ///   - condition: The WHERE condition string. Can reference variables using $name syntax.
+    ///   - variables: Dictionary of variable names to values.
+    /// - Returns: A new QueryBuilder with the WHERE clause added.
+    ///
+    /// Example:
+    /// ```swift
+    /// let results = try await db.query()
+    ///     .select("*")
+    ///     .from("users")
+    ///     .whereRaw("age >= $minAge AND status = $status", variables: [
+    ///         "minAge": .int(18),
+    ///         "status": .string("active")
+    ///     ])
+    ///     .fetch()
+    /// ```
+    public func whereRaw(_ condition: String, variables: [String: SurrealValue] = [:]) -> QueryBuilder {
+        var newBindings = bindings
+        for (key, value) in variables {
+            newBindings[key] = value
+        }
+        return QueryBuilder(
+            client: client,
+            query: query + " WHERE \(condition)",
+            bindings: newBindings
+        )
     }
 
     /// Adds an ORDER BY clause.
-    public func orderBy(_ field: String, ascending: Bool = true) -> QueryBuilder {
+    ///
+    /// - Parameters:
+    ///   - field: The field name to order by.
+    ///   - ascending: Whether to order ascending (default: true) or descending.
+    /// - Returns: A new QueryBuilder with the ORDER BY clause added.
+    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
+    public func orderBy(_ field: String, ascending: Bool = true) throws -> QueryBuilder {
+        try SurrealValidator.validateFieldName(field)
         let direction = ascending ? "ASC" : "DESC"
         return updated(query: query + " ORDER BY \(field) \(direction)")
     }
@@ -72,7 +151,14 @@ public struct QueryBuilder: Sendable {
     }
 
     /// Adds a GROUP BY clause.
-    public func groupBy(_ fields: String...) -> QueryBuilder {
+    ///
+    /// - Parameter fields: Field names to group by.
+    /// - Returns: A new QueryBuilder with the GROUP BY clause added.
+    /// - Throws: `SurrealError.invalidQuery` if any field name is invalid.
+    public func groupBy(_ fields: String...) throws -> QueryBuilder {
+        for field in fields {
+            try SurrealValidator.validateFieldName(field)
+        }
         let fieldsStr = fields.joined(separator: ", ")
         return updated(query: query + " GROUP BY \(fieldsStr)")
     }
@@ -80,14 +166,23 @@ public struct QueryBuilder: Sendable {
     // MARK: - CREATE
 
     /// Starts a CREATE query.
-    public func create(_ table: String) -> QueryBuilder {
+    ///
+    /// - Parameter table: The table name.
+    /// - Returns: A new QueryBuilder with the CREATE clause.
+    /// - Throws: `SurrealError.invalidQuery` if the table name is invalid.
+    public func create(_ table: String) throws -> QueryBuilder {
+        try SurrealValidator.validateTableName(table)
         return updated(query: "CREATE \(table)")
     }
 
     /// Sets content for CREATE or UPDATE.
+    ///
+    /// - Parameter data: The data to set as content. Automatically parameterized.
+    /// - Returns: A new QueryBuilder with the CONTENT clause.
+    /// - Throws: Encoding errors if the data cannot be encoded.
     public func content<T: Encodable>(_ data: T) throws -> QueryBuilder {
         let value = try SurrealValue(from: data)
-        let binding = "content_\(UUID().uuidString.replacingOccurrences(of: "-", with: "_"))"
+        let binding = IDGenerator.generateBindingID()
         var newBindings = bindings
         newBindings[binding] = value
         return QueryBuilder(
@@ -98,8 +193,15 @@ public struct QueryBuilder: Sendable {
     }
 
     /// Sets a field value.
-    public func set(_ field: String, to value: SurrealValue) -> QueryBuilder {
-        let binding = "value_\(UUID().uuidString.replacingOccurrences(of: "-", with: "_"))"
+    ///
+    /// - Parameters:
+    ///   - field: The field name to set.
+    ///   - value: The value to set. Automatically parameterized.
+    /// - Returns: A new QueryBuilder with the SET clause.
+    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
+    public func set(_ field: String, to value: SurrealValue) throws -> QueryBuilder {
+        try SurrealValidator.validateFieldName(field)
+        let binding = IDGenerator.generateBindingID()
         var newBindings = bindings
         newBindings[binding] = value
 
@@ -114,14 +216,24 @@ public struct QueryBuilder: Sendable {
     // MARK: - UPDATE
 
     /// Starts an UPDATE query.
-    public func update(_ target: String) -> QueryBuilder {
+    ///
+    /// - Parameter target: The table name or record ID.
+    /// - Returns: A new QueryBuilder with the UPDATE clause.
+    /// - Throws: `SurrealError.invalidQuery` if the target is invalid.
+    public func update(_ target: String) throws -> QueryBuilder {
+        try SurrealValidator.validateTableName(target)
         return updated(query: "UPDATE \(target)")
     }
 
     // MARK: - DELETE
 
     /// Starts a DELETE query.
-    public func delete(_ target: String) -> QueryBuilder {
+    ///
+    /// - Parameter target: The table name or record ID.
+    /// - Returns: A new QueryBuilder with the DELETE clause.
+    /// - Throws: `SurrealError.invalidQuery` if the target is invalid.
+    public func delete(_ target: String) throws -> QueryBuilder {
+        try SurrealValidator.validateTableName(target)
         return updated(query: "DELETE FROM \(target)")
     }
 
@@ -179,6 +291,22 @@ public struct QueryBuilder: Sendable {
     private func updated(query: String) -> QueryBuilder {
         QueryBuilder(client: client, query: query, bindings: bindings)
     }
+}
+
+// MARK: - ComparisonOperator
+
+/// Comparison operators for type-safe WHERE clauses.
+public enum ComparisonOperator: String, Sendable {
+    case equal = "="
+    case notEqual = "!="
+    case greaterThan = ">"
+    case greaterThanOrEqual = ">="
+    case lessThan = "<"
+    case lessThanOrEqual = "<="
+    case `in` = "IN"
+    case notIn = "NOT IN"
+    case contains = "CONTAINS"
+    case like = "~"
 }
 
 // MARK: - SurrealDB Extension

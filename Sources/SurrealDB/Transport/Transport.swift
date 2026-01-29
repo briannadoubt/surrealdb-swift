@@ -5,6 +5,9 @@ import Foundation
 /// Implementations include WebSocket and HTTP transports.
 @SurrealActor
 public protocol Transport: Sendable {
+    /// Configuration for this transport.
+    var config: TransportConfig { get async }
+
     /// Establishes a connection to the database.
     func connect() async throws
 

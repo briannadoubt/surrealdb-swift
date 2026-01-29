@@ -7,6 +7,7 @@ import Foundation
 @SurrealActor
 public final class HTTPTransport: Transport, Sendable {
     private let url: URL
+    private let transportConfig: TransportConfig
     private let session: URLSession
     private var namespace: String?
     private var database: String?
@@ -17,10 +18,22 @@ public final class HTTPTransport: Transport, Sendable {
 
     /// Creates a new HTTP transport.
     ///
-    /// - Parameter url: The base URL of the SurrealDB server (e.g., "http://localhost:8000").
-    nonisolated public init(url: URL) {
+    /// - Parameters:
+    ///   - url: The base URL of the SurrealDB server (e.g., "http://localhost:8000").
+    ///   - config: Transport configuration including timeouts.
+    nonisolated public init(url: URL, config: TransportConfig = .default) {
         self.url = url
-        self.session = URLSession.shared
+        self.transportConfig = config
+
+        // Configure URLSession with timeouts
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.timeoutIntervalForRequest = config.requestTimeout
+        sessionConfig.timeoutIntervalForResource = config.connectionTimeout
+        self.session = URLSession(configuration: sessionConfig)
+    }
+
+    public var config: TransportConfig {
+        get async { transportConfig }
     }
 
     public func connect() async throws {
@@ -59,7 +72,14 @@ public final class HTTPTransport: Transport, Sendable {
         }
 
         // Send the request
-        let (data, response) = try await session.data(for: urlRequest)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: urlRequest)
+        } catch let error as URLError where error.code == .timedOut {
+            throw SurrealError.timeout
+        } catch {
+            throw SurrealError.connectionError("Request failed: \(error)")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SurrealError.invalidResponse("Not an HTTP response")

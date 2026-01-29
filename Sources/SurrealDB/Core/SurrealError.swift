@@ -29,6 +29,9 @@ public enum SurrealError: Error, Sendable, Equatable {
 
     /// The operation is not supported by this transport.
     case unsupportedOperation(String)
+
+    /// Invalid query syntax or identifier.
+    case invalidQuery(String)
 }
 
 extension SurrealError: CustomStringConvertible {
@@ -58,6 +61,8 @@ extension SurrealError: CustomStringConvertible {
             return "Encoding error: \(message)"
         case .unsupportedOperation(let message):
             return "Unsupported operation: \(message)"
+        case .invalidQuery(let message):
+            return "Invalid query: \(message)"
         }
     }
 }

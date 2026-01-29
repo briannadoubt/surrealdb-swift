@@ -8,16 +8,22 @@ final class MockTransport: Transport {
     var responseQueue: [String: JSONRPCResponse] = [:]
     var defaultResult: SurrealValue = .null
     var _isConnected: Bool = false
+    private let transportConfig: TransportConfig
 
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
     private let notificationStream: AsyncStream<LiveQueryNotification>
 
-    nonisolated init() {
+    nonisolated init(config: TransportConfig = .default) {
+        self.transportConfig = config
         var cont: AsyncStream<LiveQueryNotification>.Continuation?
         self.notificationStream = AsyncStream { continuation in
             cont = continuation
         }
         self.notificationContinuation = cont
+    }
+
+    var config: TransportConfig {
+        get async { transportConfig }
     }
 
     func connect() async throws {
@@ -39,11 +45,29 @@ final class MockTransport: Transport {
             return response
         }
 
-        // Return default success response
+        // Check if there's a wildcard response queued (id: "*")
+        if let response = responseQueue["*"] {
+            return JSONRPCResponse(
+                jsonrpc: response.jsonrpc,
+                id: request.id,
+                result: response.result,
+                error: response.error
+            )
+        }
+
+        // Return appropriate default based on method
+        let result: SurrealValue
+        if request.method == "query" {
+            // Query responses should be an array of result objects
+            result = .array([.object(["status": .string("OK"), "result": .array([])])])
+        } else {
+            result = defaultResult
+        }
+
         return JSONRPCResponse(
             jsonrpc: "2.0",
             id: request.id,
-            result: defaultResult,
+            result: result,
             error: nil
         )
     }
