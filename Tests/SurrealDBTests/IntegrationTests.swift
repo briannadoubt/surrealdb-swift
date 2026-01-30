@@ -1,4 +1,5 @@
-import XCTest
+import Testing
+import Foundation
 @testable import SurrealDB
 
 /// Integration tests that require a running SurrealDB instance.
@@ -6,43 +7,55 @@ import XCTest
 /// To run these tests:
 /// 1. Start SurrealDB: `surreal start --user root --pass root memory`
 /// 2. Run tests: `SURREALDB_TEST=1 swift test`
-final class IntegrationTests: XCTestCase {
-    var db: SurrealDB!
+@Suite("Integration Tests")
+struct IntegrationTests {
 
-    override func setUp() async throws {
-        // Skip unless integration tests are enabled
-        guard ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1" else {
-            throw XCTSkip("Integration tests require SURREALDB_TEST=1 and running SurrealDB")
-        }
-
-        db = try SurrealDB(url: "ws://localhost:8000/rpc")
+    @Test("Connection test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    func testConnection() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
         try await db.use(namespace: "test", database: "test")
-    }
 
-    override func tearDown() async throws {
-        if db != nil {
-            try await db.disconnect()
-        }
-    }
-
-    func testConnection() async throws {
         let connected = await db.isConnected
-        XCTAssertTrue(connected)
+        #expect(connected)
+
+        try await db.disconnect()
     }
 
+    @Test("Ping test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testPing() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         try await db.ping()
+
+        try await db.disconnect()
     }
 
+    @Test("Version test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testVersion() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         let version = try await db.version()
-        XCTAssertFalse(version.isEmpty)
+        #expect(!version.isEmpty)
         print("SurrealDB version:", version)
+
+        try await db.disconnect()
     }
 
+    @Test("CRUD operations", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testCRUDOperations() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         struct User: Codable {
             let name: String
             let email: String
@@ -53,27 +66,35 @@ final class IntegrationTests: XCTestCase {
         let newUser = User(name: "John Doe", email: "john@example.com", age: 30)
         let created: User = try await db.create("users:john", data: newUser)
 
-        XCTAssertEqual(created.name, "John Doe")
-        XCTAssertEqual(created.email, "john@example.com")
-        XCTAssertEqual(created.age, 30)
+        #expect(created.name == "John Doe")
+        #expect(created.email == "john@example.com")
+        #expect(created.age == 30)
 
         // Read
         let selected: [User] = try await db.select("users:john")
-        XCTAssertEqual(selected.first?.name, "John Doe")
+        #expect(selected.first?.name == "John Doe")
 
         // Update
         let updated: User = try await db.merge("users:john", data: ["age": 31])
-        XCTAssertEqual(updated.age, 31)
+        #expect(updated.age == 31)
 
         // Delete
         try await db.delete("users:john")
 
         // Verify deletion
         let deleted: [User] = try await db.select("users:john")
-        XCTAssertTrue(deleted.isEmpty, "Record should be deleted")
+        #expect(deleted.isEmpty)
+
+        try await db.disconnect()
     }
 
+    @Test("Query with variables", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testQuery() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         struct TestUser: Codable {
             let name: String
             let age: Int
@@ -97,13 +118,21 @@ final class IntegrationTests: XCTestCase {
             variables: ["minAge": .int(25)]
         )
 
-        XCTAssertGreaterThan(results.count, 0)
+        #expect(results.count > 0)
 
         // Cleanup
         try await db.delete("users")
+
+        try await db.disconnect()
     }
 
+    @Test("Live queries", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testLiveQueries() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         let (queryId, stream) = try await db.live("users")
 
         actor NotificationCollector {
@@ -159,16 +188,24 @@ final class IntegrationTests: XCTestCase {
 
         // Verify we received notifications
         let count = await collector.count()
-        XCTAssertGreaterThanOrEqual(count, 2)
+        #expect(count >= 2)
 
         let actions = await collector.actions()
-        XCTAssertTrue(actions.contains(.create) || actions.contains(.update))
+        #expect(actions.contains(.create) || actions.contains(.update))
 
         // Cleanup
         try await db.delete("users:live1")
+
+        try await db.disconnect()
     }
 
+    @Test("Query builder", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testQueryBuilder() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         struct User: Codable {
             let name: String
             let age: Int
@@ -194,13 +231,21 @@ final class IntegrationTests: XCTestCase {
             .orderBy("age")
             .fetch()
 
-        XCTAssertGreaterThanOrEqual(results.count, 2)
+        #expect(results.count >= 2)
 
         // Cleanup
         try await db.delete("users")
+
+        try await db.disconnect()
     }
 
+    @Test("Relationships", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testRelationships() async throws {
+        let db = try SurrealDB(url: "ws://localhost:8000/rpc")
+        try await db.connect()
+        try await db.signin(.root(RootAuth(username: "root", password: "root")))
+        try await db.use(namespace: "test", database: "test")
+
         struct Person: Codable {
             let name: String
         }
@@ -228,11 +273,13 @@ final class IntegrationTests: XCTestCase {
             data: Authored(publishedAt: "2024-01-01")
         )
 
-        XCTAssertEqual(edge.publishedAt, "2024-01-01")
+        #expect(edge.publishedAt == "2024-01-01")
 
         // Cleanup
         try await db.delete("persons")
         try await db.delete("posts")
         _ = try await db.query("DELETE authored")
+
+        try await db.disconnect()
     }
 }

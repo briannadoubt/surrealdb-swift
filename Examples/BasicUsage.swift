@@ -54,13 +54,13 @@ struct BasicUsage {
             print("  - \(user.name), age \(user.age)")
         }
 
-        // Use the query builder
+        // Use the query builder with type-safe parameter binding
         print("\nUsing query builder...")
         let adults: [User] = try await db
             .query()
             .select("name", "email", "age")
             .from("users")
-            .where("age >= 30")
+            .where(field: "age", op: .greaterThanOrEqual, value: .int(30))
             .orderBy("name")
             .fetch()
 

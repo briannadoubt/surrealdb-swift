@@ -1,62 +1,71 @@
-import XCTest
+import Testing
+import Foundation
 @testable import SurrealDB
 
-final class SurrealValueTests: XCTestCase {
-    func testNullValue() throws {
+@Suite("SurrealValue Tests")
+struct SurrealValueTests {
+    @Test("Null value encoding and decoding")
+    func nullValue() throws {
         let value: SurrealValue = .null
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, .null)
+        #expect(decoded == .null)
     }
 
-    func testBoolValue() throws {
+    @Test("Bool value encoding and decoding")
+    func boolValue() throws {
         let value: SurrealValue = .bool(true)
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, .bool(true))
+        #expect(decoded == .bool(true))
     }
 
-    func testIntValue() throws {
+    @Test("Int value encoding and decoding")
+    func intValue() throws {
         let value: SurrealValue = .int(42)
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, .int(42))
+        #expect(decoded == .int(42))
     }
 
-    func testDoubleValue() throws {
+    @Test("Double value encoding and decoding")
+    func doubleValue() throws {
         let value: SurrealValue = .double(3.14)
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, .double(3.14))
+        #expect(decoded == .double(3.14))
     }
 
-    func testStringValue() throws {
+    @Test("String value encoding and decoding")
+    func stringValue() throws {
         let value: SurrealValue = .string("hello")
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, .string("hello"))
+        #expect(decoded == .string("hello"))
     }
 
-    func testArrayValue() throws {
+    @Test("Array value encoding and decoding")
+    func arrayValue() throws {
         let value: SurrealValue = .array([.int(1), .string("two"), .bool(true)])
 
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, value)
+        #expect(decoded == value)
     }
 
-    func testObjectValue() throws {
+    @Test("Object value encoding and decoding")
+    func objectValue() throws {
         let value: SurrealValue = .object([
             "name": .string("John"),
             "age": .int(30),
@@ -66,10 +75,11 @@ final class SurrealValueTests: XCTestCase {
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, value)
+        #expect(decoded == value)
     }
 
-    func testNestedStructures() throws {
+    @Test("Nested structures encoding and decoding")
+    func nestedStructures() throws {
         let value: SurrealValue = .object([
             "user": .object([
                 "name": .string("John"),
@@ -84,30 +94,33 @@ final class SurrealValueTests: XCTestCase {
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(SurrealValue.self, from: data)
 
-        XCTAssertEqual(decoded, value)
+        #expect(decoded == value)
     }
 
-    func testArraySubscript() {
+    @Test("Array subscript access")
+    func arraySubscript() {
         let value: SurrealValue = .array([.int(1), .int(2), .int(3)])
 
-        XCTAssertEqual(value[0], .int(1))
-        XCTAssertEqual(value[1], .int(2))
-        XCTAssertEqual(value[2], .int(3))
-        XCTAssertNil(value[3])
+        #expect(value[0] == .int(1))
+        #expect(value[1] == .int(2))
+        #expect(value[2] == .int(3))
+        #expect(value[3] == nil)
     }
 
-    func testObjectSubscript() {
+    @Test("Object subscript access")
+    func objectSubscript() {
         let value: SurrealValue = .object([
             "name": .string("John"),
             "age": .int(30)
         ])
 
-        XCTAssertEqual(value["name"], .string("John"))
-        XCTAssertEqual(value["age"], .int(30))
-        XCTAssertNil(value["unknown"])
+        #expect(value["name"] == .string("John"))
+        #expect(value["age"] == .int(30))
+        #expect(value["unknown"] == nil)
     }
 
-    func testEncodableConversion() throws {
+    @Test("Encodable conversion from custom type")
+    func encodableConversion() throws {
         struct User: Codable {
             let name: String
             let age: Int
@@ -117,15 +130,16 @@ final class SurrealValueTests: XCTestCase {
         let value = try SurrealValue(from: user)
 
         guard case .object(let obj) = value else {
-            XCTFail("Expected object")
+            Issue.record("Expected object")
             return
         }
 
-        XCTAssertEqual(obj["name"], .string("John"))
-        XCTAssertEqual(obj["age"], .int(30))
+        #expect(obj["name"] == .string("John"))
+        #expect(obj["age"] == .int(30))
     }
 
-    func testDecodableConversion() throws {
+    @Test("Decodable conversion to custom type")
+    func decodableConversion() throws {
         struct User: Codable, Equatable {
             let name: String
             let age: Int
@@ -138,10 +152,11 @@ final class SurrealValueTests: XCTestCase {
 
         let user: User = try value.decode()
 
-        XCTAssertEqual(user, User(name: "John", age: 30))
+        #expect(user == User(name: "John", age: 30))
     }
 
-    func testLiteralInitializers() {
+    @Test("Literal initializers")
+    func literalInitializers() {
         let null: SurrealValue = nil
         let bool: SurrealValue = true
         let int: SurrealValue = 42
@@ -150,12 +165,12 @@ final class SurrealValueTests: XCTestCase {
         let array: SurrealValue = [1, 2, 3]
         let object: SurrealValue = ["key": "value"]
 
-        XCTAssertEqual(null, .null)
-        XCTAssertEqual(bool, .bool(true))
-        XCTAssertEqual(int, .int(42))
-        XCTAssertEqual(double, .double(3.14))
-        XCTAssertEqual(string, .string("hello"))
-        XCTAssertEqual(array, .array([.int(1), .int(2), .int(3)]))
-        XCTAssertEqual(object, .object(["key": .string("value")]))
+        #expect(null == .null)
+        #expect(bool == .bool(true))
+        #expect(int == .int(42))
+        #expect(double == .double(3.14))
+        #expect(string == .string("hello"))
+        #expect(array == .array([.int(1), .int(2), .int(3)]))
+        #expect(object == .object(["key": .string("value")]))
     }
 }
