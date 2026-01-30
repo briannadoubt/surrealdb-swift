@@ -17,3 +17,17 @@ xcuserdata/
 
 # Testing
 .test-output/
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.mobileprovision
+credentials.json
+secrets.json
+
+# IDE
+.vscode/
+.idea/
