@@ -8,7 +8,6 @@ This directory contains internal development documentation, design notes, and im
 
 - **IMPLEMENTATION_SUMMARY.md** - Historical summary of the implementation phases
 - **INTEGRATION_TESTS.md** - Guide for running integration tests with a live SurrealDB instance
-- **TESTING.md** - Testing strategy and test organization
 
 ### Design Documents (`Design/`)
 
@@ -21,7 +20,7 @@ This directory contains internal development documentation, design notes, and im
 If you're contributing to SurrealDB Swift:
 
 1. Start with **[CLAUDE.md](../CLAUDE.md)** (root directory) for architecture overview and coding conventions
-2. Review **TESTING.md** for test requirements
+2. Review **[Tests/README.md](../Tests/README.md)** for test requirements
 3. Check **INTEGRATION_TESTS.md** for integration test setup
 
 ## Public Documentation
