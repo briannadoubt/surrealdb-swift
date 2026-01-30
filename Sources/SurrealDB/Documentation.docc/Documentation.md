@@ -15,11 +15,11 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 
 ## Supported Platforms
 
-- macOS 15.0+
-- iOS 18.0+
-- tvOS 18.0+
-- watchOS 11.0+
-- visionOS 2.0+
+- macOS 14.0+
+- iOS 17.0+
+- tvOS 17.0+
+- watchOS 10.0+
+- visionOS 1.0+
 - Linux (with Swift 6.0+)
 
 ## Topics
@@ -31,7 +31,7 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 
 ### Authentication
 
-- <doc:Articles/Authentication>
+- <doc:Authentication>
 - ``Credentials``
 - ``RootAuth``
 - ``NamespaceAuth``
@@ -46,14 +46,24 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 
 ### Real-time Features
 
-- <doc:Articles/LiveQueries>
+- <doc:LiveQueries>
 - ``LiveQueryNotification``
 - ``LiveQueryAction``
 
 ### Query Building
 
-- <doc:Articles/QueryBuilder>
+- <doc:QueryBuilder>
 - ``QueryBuilder``
+
+### Advanced Features
+
+- <doc:AdvancedFeatures>
+- ``SurrealModel``
+- ``EdgeModel``
+
+### Security
+
+- <doc:Security>
 
 ### Error Handling
 
