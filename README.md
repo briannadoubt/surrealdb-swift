@@ -160,13 +160,19 @@ See [Security.md](./Sources/SurrealDB/Documentation.docc/Articles/Security.md) f
 
 ## Documentation
 
-Full documentation is available in the package:
+Browse the full documentation online:
+
+📚 **[Documentation Site](https://briannadoubt.github.io/surrealdb-swift/documentation/surrealdb/)**
+
+Or generate locally:
 
 ```bash
-swift package generate-documentation
-```
+# Build documentation
+swift package generate-documentation --target SurrealDB
 
-Or browse the docs online at [link to your docs].
+# Preview documentation locally
+swift package --disable-sandbox preview-documentation --target SurrealDB
+```
 
 ## Examples
 
