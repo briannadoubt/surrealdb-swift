@@ -19,7 +19,7 @@ public actor SurrealDB {
     private var currentNamespace: String?
     private var currentDatabase: String?
     private var authToken: String?
-    private var liveQueryStreams: [String: AsyncStream<LiveQueryNotification>.Continuation] = [:]
+    private var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
 
     /// Creates a new SurrealDB client.
@@ -76,8 +76,10 @@ public actor SurrealDB {
         notificationRouterTask = nil
 
         // Finish all live query streams
-        for (_, continuation) in liveQueryStreams {
-            continuation.finish()
+        for (_, continuations) in liveQueryStreams {
+            for continuation in continuations {
+                continuation.finish()
+            }
         }
         liveQueryStreams.removeAll()
 
@@ -405,7 +407,11 @@ public actor SurrealDB {
         }
 
         let stream = AsyncStream<LiveQueryNotification> { continuation in
-            liveQueryStreams[queryId] = continuation
+            if liveQueryStreams[queryId] != nil {
+                liveQueryStreams[queryId]?.append(continuation)
+            } else {
+                liveQueryStreams[queryId] = [continuation]
+            }
         }
 
         return (queryId, stream)
@@ -417,16 +423,22 @@ public actor SurrealDB {
     public func kill(_ queryId: String) async throws {
         _ = try await rpc(method: "kill", params: [.string(queryId)])
 
-        if let continuation = liveQueryStreams.removeValue(forKey: queryId) {
-            continuation.finish()
+        if let continuations = liveQueryStreams.removeValue(forKey: queryId) {
+            for continuation in continuations {
+                continuation.finish()
+            }
         }
     }
 
     /// Subscribes to notifications from an existing live query.
     ///
     /// This method allows subscribing to an existing live query by its ID,
-    /// enabling multiple listeners for the same query. This provides API parity
-    /// with other SurrealDB SDKs.
+    /// enabling multiple listeners for the same query. All subscriptions receive
+    /// the same notifications, making it useful for broadcasting database changes
+    /// to multiple parts of your application.
+    ///
+    /// Multiple calls to ``live(_:diff:)`` and ``subscribeLive(_:)`` with the same
+    /// query ID will create independent streams that all receive notifications.
     ///
     /// - Parameter queryId: The live query UUID to subscribe to.
     /// - Returns: A stream of live query notifications.
@@ -439,8 +451,9 @@ public actor SurrealDB {
     ///
     /// // Subscribe to the same query from another context
     /// let stream2 = try await db.subscribeLive(queryId)
+    /// let stream3 = try await db.subscribeLive(queryId)
     ///
-    /// // Both streams receive the same notifications
+    /// // All streams receive the same notifications
     /// Task {
     ///     for await notification in stream1 {
     ///         print("Stream 1:", notification.action)
@@ -452,14 +465,27 @@ public actor SurrealDB {
     ///         print("Stream 2:", notification.action)
     ///     }
     /// }
+    ///
+    /// Task {
+    ///     for await notification in stream3 {
+    ///         print("Stream 3:", notification.action)
+    ///     }
+    /// }
     /// ```
+    ///
+    /// - Note: When ``kill(_:)`` is called, all streams subscribed to that query ID
+    ///   will be finished and stopped receiving notifications.
     public func subscribeLive(_ queryId: String) async throws -> AsyncStream<LiveQueryNotification> {
         guard transport is WebSocketTransport else {
             throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
         }
 
         let stream = AsyncStream<LiveQueryNotification> { continuation in
-            liveQueryStreams[queryId] = continuation
+            if liveQueryStreams[queryId] != nil {
+                liveQueryStreams[queryId]?.append(continuation)
+            } else {
+                liveQueryStreams[queryId] = [continuation]
+            }
         }
 
         return stream
@@ -511,14 +537,20 @@ public actor SurrealDB {
         let stream = await transport.notifications
 
         for await notification in stream {
-            // Route notification to the correct stream
+            // Route notification to all subscribed streams
             if let queryId = notification.id,
-               let continuation = liveQueryStreams[queryId] {
-                continuation.yield(notification)
+               let continuations = liveQueryStreams[queryId] {
+                for continuation in continuations {
+                    continuation.yield(notification)
 
-                // If it's a CLOSE notification, finish the stream
+                    // If it's a CLOSE notification, finish the stream
+                    if notification.action == .close {
+                        continuation.finish()
+                    }
+                }
+
+                // Remove all continuations after CLOSE
                 if notification.action == .close {
-                    continuation.finish()
                     liveQueryStreams.removeValue(forKey: queryId)
                 }
             }
