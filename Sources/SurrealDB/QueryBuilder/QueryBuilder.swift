@@ -296,16 +296,47 @@ public struct QueryBuilder: Sendable {
 // MARK: - ComparisonOperator
 
 /// Comparison operators for type-safe WHERE clauses.
+///
+/// Use these operators with the `where(field:op:value:)` method to build secure,
+/// parameterized WHERE conditions.
+///
+/// Example:
+/// ```swift
+/// let adults = try await db.query()
+///     .select("*")
+///     .from("users")
+///     .where(field: "age", op: .greaterThanOrEqual, value: .int(18))
+///     .fetch()
+/// ```
 public enum ComparisonOperator: String, Sendable {
+    /// Equal to (`=`)
     case equal = "="
+
+    /// Not equal to (`!=`)
     case notEqual = "!="
+
+    /// Greater than (`>`)
     case greaterThan = ">"
+
+    /// Greater than or equal to (`>=`)
     case greaterThanOrEqual = ">="
+
+    /// Less than (`<`)
     case lessThan = "<"
+
+    /// Less than or equal to (`<=`)
     case lessThanOrEqual = "<="
+
+    /// In a set of values (`IN`)
     case `in` = "IN"
+
+    /// Not in a set of values (`NOT IN`)
     case notIn = "NOT IN"
+
+    /// Contains a value (`CONTAINS`)
     case contains = "CONTAINS"
+
+    /// Pattern matching (`~`)
     case like = "~"
 }
 
