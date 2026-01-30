@@ -169,6 +169,6 @@ try await db.disconnect()
 
 ## Next Steps
 
-- Learn about <doc:Articles/Authentication> strategies
-- Explore <doc:Articles/LiveQueries> for real-time features
-- Master the <doc:Articles/QueryBuilder> for complex queries
+- Learn about <doc:Authentication> strategies
+- Explore <doc:LiveQueries> for real-time features
+- Master the <doc:QueryBuilder> for complex queries
