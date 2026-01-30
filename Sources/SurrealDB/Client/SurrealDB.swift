@@ -84,6 +84,19 @@ public actor SurrealDB {
         try await transport.disconnect()
     }
 
+    /// Gracefully closes the connection to the SurrealDB server.
+    ///
+    /// This method provides API parity with other SurrealDB SDKs and is functionally
+    /// equivalent to ``disconnect()``.
+    ///
+    /// Example:
+    /// ```swift
+    /// try await db.close()
+    /// ```
+    public func close() async throws {
+        try await disconnect()
+    }
+
     /// Returns whether the client is connected.
     public var isConnected: Bool {
         get async {
@@ -320,6 +333,34 @@ public actor SurrealDB {
         return try result.decode()
     }
 
+    /// Upserts (updates or inserts) records.
+    ///
+    /// This method creates a new record if it doesn't exist, or updates it if it does.
+    /// Works with both table names (affects matching records) and specific record IDs.
+    ///
+    /// - Parameters:
+    ///   - target: The table name or record ID.
+    ///   - data: The data to upsert.
+    /// - Returns: The upserted record(s).
+    ///
+    /// Example:
+    /// ```swift
+    /// // Upsert a specific record
+    /// let user: User = try await db.upsert("users:john", data: User(name: "John", age: 30))
+    ///
+    /// // Upsert with table name
+    /// let users: [User] = try await db.upsert("users", data: userData)
+    /// ```
+    public func upsert<T: Encodable, R: Decodable>(_ target: String, data: T) async throws -> R {
+        let params: [SurrealValue] = [
+            .string(target),
+            try SurrealValue(from: data)
+        ]
+
+        let result = try await rpc(method: "upsert", params: params)
+        return try result.decode()
+    }
+
     /// Applies JSON Patch operations to records.
     ///
     /// - Parameters:
@@ -381,6 +422,49 @@ public actor SurrealDB {
         }
     }
 
+    /// Subscribes to notifications from an existing live query.
+    ///
+    /// This method allows subscribing to an existing live query by its ID,
+    /// enabling multiple listeners for the same query. This provides API parity
+    /// with other SurrealDB SDKs.
+    ///
+    /// - Parameter queryId: The live query UUID to subscribe to.
+    /// - Returns: A stream of live query notifications.
+    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using HTTP transport.
+    ///
+    /// Example:
+    /// ```swift
+    /// // Create a live query
+    /// let (queryId, stream1) = try await db.live("users")
+    ///
+    /// // Subscribe to the same query from another context
+    /// let stream2 = try await db.subscribeLive(queryId)
+    ///
+    /// // Both streams receive the same notifications
+    /// Task {
+    ///     for await notification in stream1 {
+    ///         print("Stream 1:", notification.action)
+    ///     }
+    /// }
+    ///
+    /// Task {
+    ///     for await notification in stream2 {
+    ///         print("Stream 2:", notification.action)
+    ///     }
+    /// }
+    /// ```
+    public func subscribeLive(_ queryId: String) async throws -> AsyncStream<LiveQueryNotification> {
+        guard transport is WebSocketTransport else {
+            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
+        }
+
+        let stream = AsyncStream<LiveQueryNotification> { continuation in
+            liveQueryStreams[queryId] = continuation
+        }
+
+        return stream
+    }
+
     // MARK: - Internal Helpers
 
     internal func rpc(method: String, params: [SurrealValue]?) async throws -> SurrealValue {
@@ -401,6 +485,16 @@ public actor SurrealDB {
         }
 
         return result
+    }
+
+    /// Helper to check if using HTTP transport (for extension methods).
+    internal var isHTTPTransport: Bool {
+        transport is HTTPTransport
+    }
+
+    /// Helper to check if using WebSocket transport (for extension methods).
+    internal var isWebSocketTransport: Bool {
+        transport is WebSocketTransport
     }
 
     private func decodeArray<T: Decodable>(_ value: SurrealValue) throws -> [T] {

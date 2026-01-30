@@ -63,4 +63,106 @@ extension SurrealDB {
         try await rpc(method: "graphql", params: [.string(query)])
     }
 
+    /// Exports data from the current namespace and database.
+    ///
+    /// This method exports the database schema and data as SurrealQL statements.
+    /// The exported data can be imported using the ``import(_:)`` method.
+    ///
+    /// - Parameter options: Export configuration options. Defaults to exporting all data.
+    /// - Returns: A string containing SurrealQL statements representing the exported data.
+    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using WebSocket transport.
+    ///
+    /// Example:
+    /// ```swift
+    /// // Export all data
+    /// let backup = try await db.export()
+    /// try backup.write(to: URL(fileURLWithPath: "backup.surql"))
+    ///
+    /// // Export specific tables
+    /// let userBackup = try await db.export(options: ExportOptions(
+    ///     tables: ["users", "profiles"],
+    ///     functions: false
+    /// ))
+    /// ```
+    ///
+    /// - Note: Export is only supported with HTTP transport due to protocol limitations.
+    public func export(options: ExportOptions = .default) async throws -> String {
+        guard isHTTPTransport else {
+            throw SurrealError.unsupportedOperation("Export is only supported with HTTP transport")
+        }
+
+        let result = try await rpc(method: "export", params: [try SurrealValue(from: options)])
+
+        guard case .string(let exportData) = result else {
+            throw SurrealError.invalidResponse("Expected string export data, got \(result)")
+        }
+
+        return exportData
+    }
+
+    /// Imports SurrealQL data into the current namespace and database.
+    ///
+    /// This method imports database schema and data from SurrealQL statements,
+    /// typically from a previous export operation.
+    ///
+    /// - Parameter data: A string containing SurrealQL statements to import.
+    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using WebSocket transport.
+    ///
+    /// Example:
+    /// ```swift
+    /// // Import from file
+    /// let sql = try String(contentsOf: URL(fileURLWithPath: "backup.surql"))
+    /// try await db.import(sql)
+    ///
+    /// // Round-trip backup/restore
+    /// let backup = try await db.export()
+    /// // ... later ...
+    /// try await db.import(backup)
+    /// ```
+    ///
+    /// - Note: Import is only supported with HTTP transport due to protocol limitations.
+    public func `import`(_ data: String) async throws {
+        guard isHTTPTransport else {
+            throw SurrealError.unsupportedOperation("Import is only supported with HTTP transport")
+        }
+
+        _ = try await rpc(method: "import", params: [.string(data)])
+    }
+
+    /// Inserts a relationship between two records.
+    ///
+    /// This is a specialized method for inserting relationship (edge) records,
+    /// providing API parity with other SurrealDB SDKs.
+    ///
+    /// - Parameters:
+    ///   - table: The relationship table name.
+    ///   - data: The relationship data to insert.
+    /// - Returns: The inserted relationship record(s).
+    ///
+    /// Example:
+    /// ```swift
+    /// struct AuthoredEdge: Codable {
+    ///     let `in`: String  // from record ID
+    ///     let out: String   // to record ID
+    ///     let createdAt: Date
+    /// }
+    ///
+    /// let relationship: AuthoredEdge = try await db.insertRelation(
+    ///     "authored",
+    ///     data: AuthoredEdge(in: "users:john", out: "posts:123", createdAt: Date())
+    /// )
+    /// ```
+    public func insertRelation<T: Encodable, R: Decodable>(
+        _ table: String,
+        data: T
+    ) async throws -> R {
+        let params: [SurrealValue] = [
+            .string(table),
+            try SurrealValue(from: data)
+        ]
+
+        let result = try await rpc(method: "insert", params: params)
+        return try result.decode()
+    }
+
 }
