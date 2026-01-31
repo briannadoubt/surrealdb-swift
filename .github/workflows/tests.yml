@@ -61,61 +61,49 @@ jobs:
       run: swift --version
 
     - name: Start SurrealDB
-      run: |
-        docker compose up -d
-        echo "Waiting for SurrealDB to be healthy..."
-        timeout 30s bash -c 'until docker compose ps | grep -q "healthy"; do sleep 2; done'
-        echo "SurrealDB is ready!"
+      uses: surrealdb/setup-surreal@v2
+      with:
+        surrealdb_version: latest
+        surrealdb_port: 8000
+        surrealdb_username: root
+        surrealdb_password: root
+        surrealdb_auth: true
+        surrealdb_strict: false
+        surrealdb_log: info
 
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test
       env:
         SURREALDB_TEST: "1"
 
-    - name: Show SurrealDB logs on failure
-      if: failure()
-      run: docker compose logs
-
-    - name: Stop SurrealDB
-      if: always()
-      run: docker compose down
-
   integration-test-linux:
     name: Integration Tests on Ubuntu
     runs-on: ubuntu-latest
+    container:
+      image: swift:6.2
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: "6.0"
-
     - name: Show Swift version
       run: swift --version
 
+    - name: Install curl for SurrealDB setup
+      run: apt-get update && apt-get install -y curl
+
     - name: Start SurrealDB
-      run: |
-        docker run -d --name surrealdb \
-          -p 8000:8000 \
-          surrealdb/surrealdb:latest \
-          start --log trace --user root --pass root memory
-        echo "Waiting for SurrealDB to be healthy..."
-        sleep 5
-        timeout 30s bash -c 'until curl -f http://localhost:8000/health 2>/dev/null; do sleep 2; done'
-        echo "SurrealDB is ready!"
+      uses: surrealdb/setup-surreal@v2
+      with:
+        surrealdb_version: latest
+        surrealdb_port: 8000
+        surrealdb_username: root
+        surrealdb_password: root
+        surrealdb_auth: true
+        surrealdb_strict: false
+        surrealdb_log: info
 
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test
       env:
         SURREALDB_TEST: "1"
-
-    - name: Show SurrealDB logs on failure
-      if: failure()
-      run: docker logs surrealdb
-
-    - name: Stop SurrealDB
-      if: always()
-      run: docker stop surrealdb && docker rm surrealdb
