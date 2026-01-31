@@ -49,18 +49,18 @@ jobs:
   integration-test-linux:
     name: Integration Tests on Ubuntu
     runs-on: ubuntu-latest
-    container:
-      image: swift:6.2
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Install Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: "6.2"
+
     - name: Show Swift version
       run: swift --version
-
-    - name: Install curl for SurrealDB setup
-      run: apt-get update && apt-get install -y curl
 
     - name: Start SurrealDB
       uses: surrealdb/setup-surreal@v2
