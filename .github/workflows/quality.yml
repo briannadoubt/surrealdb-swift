@@ -70,6 +70,53 @@ jobs:
 
         echo "✅ All dependencies use secure HTTPS URLs"
 
+    - name: Secret scanning
+      run: |
+        echo "🔍 Scanning for secrets and credentials..."
+
+        FOUND_ISSUES=0
+
+        # Check for hardcoded passwords (exclude CodingKeys, test examples, and safe patterns)
+        if grep -r -i "password.*=.*\"" --include="*.swift" . | \
+           grep -v "CodingKeys" | \
+           grep -v "root.*root" | \
+           grep -v "example" | \
+           grep -v "\.build" | \
+           grep -v "test" -i; then
+          echo "❌ Found potential hardcoded passwords"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for API keys and tokens
+        if grep -r -E "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})" --include="*.swift" .; then
+          echo "❌ Found potential API keys or tokens"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for private keys
+        if grep -r "BEGIN.*PRIVATE KEY" --include="*.swift" --include="*.pem" .; then
+          echo "❌ Found private key material"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for AWS credentials
+        if grep -r -E "aws_access_key_id|aws_secret_access_key" --include="*.swift" .; then
+          echo "❌ Found AWS credentials"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for environment variables with credentials
+        if grep -r -E "export.*=(.*password|.*secret|.*key)" --include="*.sh" .; then
+          echo "❌ Found credentials in shell scripts"
+          FOUND_ISSUES=1
+        fi
+
+        if [ $FOUND_ISSUES -eq 1 ]; then
+          echo "❌ Security scan failed - found potential secrets"
+          exit 1
+        fi
+
+        echo "✅ No secrets or credentials found"
 
     - name: File permission check
       run: |
