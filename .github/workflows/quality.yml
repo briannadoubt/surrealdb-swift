@@ -7,7 +7,7 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    runs-on: macos-14
+    runs-on: macos-26
     if: false  # Disabled until .swiftlint.yml is configured
 
     steps:
@@ -24,14 +24,14 @@ jobs:
 
   documentation:
     name: Documentation Check
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Select Xcode (includes Swift 6.2)
-      run: sudo xcode-select -s /Applications/Xcode_16.3.app
+    - name: Select Xcode 26.2
+      run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
     - name: Verify DocC builds
       run: |
