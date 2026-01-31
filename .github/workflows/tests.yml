@@ -70,6 +70,7 @@ jobs:
         surrealdb_auth: true
         surrealdb_strict: false
         surrealdb_log: info
+        surrealdb_additional_args: memory
 
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test
@@ -102,6 +103,7 @@ jobs:
         surrealdb_auth: true
         surrealdb_strict: false
         surrealdb_log: info
+        surrealdb_additional_args: memory
 
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test
