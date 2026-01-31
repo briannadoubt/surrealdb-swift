@@ -82,5 +82,6 @@ jobs:
 
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test --filter IntegrationTests
+      timeout-minutes: 5
       env:
         SURREALDB_TEST: "1"
