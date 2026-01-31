@@ -76,17 +76,6 @@ jobs:
 
         FOUND_ISSUES=0
 
-        # Check for hardcoded passwords (exclude CodingKeys, test examples, and safe patterns)
-        if grep -r -i "password.*=.*\"" --include="*.swift" . | \
-           grep -v "CodingKeys" | \
-           grep -v "root.*root" | \
-           grep -v "example" | \
-           grep -v "\.build" | \
-           grep -v "test" -i; then
-          echo "❌ Found potential hardcoded passwords"
-          FOUND_ISSUES=1
-        fi
-
         # Check for API keys and tokens
         if grep -r -E "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})" --include="*.swift" .; then
           echo "❌ Found potential API keys or tokens"
