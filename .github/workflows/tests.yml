@@ -46,37 +46,6 @@ jobs:
     - name: Build for release
       run: swift build -c release
 
-  integration-test-macos:
-    name: Integration Tests on macOS
-    runs-on: macos-26
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Select Xcode 26.2
-      run: sudo xcode-select -s /Applications/Xcode_26.2.app
-
-    - name: Show Swift version
-      run: swift --version
-
-    - name: Start SurrealDB
-      uses: surrealdb/setup-surreal@v2
-      with:
-        surrealdb_version: latest
-        surrealdb_port: 8000
-        surrealdb_username: root
-        surrealdb_password: root
-        surrealdb_auth: true
-        surrealdb_strict: false
-        surrealdb_log: info
-        surrealdb_additional_args: memory
-
-    - name: Run integration tests
-      run: SURREALDB_TEST=1 swift test
-      env:
-        SURREALDB_TEST: "1"
-
   integration-test-linux:
     name: Integration Tests on Ubuntu
     runs-on: ubuntu-latest
