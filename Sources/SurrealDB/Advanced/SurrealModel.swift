@@ -76,7 +76,7 @@ public struct ID: Codable, Sendable {
     }
 
     /// Validate that the ID belongs to the expected table
-    public func validate(forTable expectedTable: String) throws {
+    public func validate(forTable expectedTable: String) throws(SurrealError) {
         guard let id = wrappedValue else { return }
 
         if id.table != expectedTable {

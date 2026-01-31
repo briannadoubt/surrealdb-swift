@@ -15,7 +15,7 @@ extension SurrealDB {
         via: String,
         to: RecordID,
         data: E? = nil as E?
-    ) async throws -> R {
+    ) async throws(SurrealError) -> R {
         var params: [SurrealValue] = [
             .string(from.toString()),
             .string(via),
@@ -23,11 +23,11 @@ extension SurrealDB {
         ]
 
         if let data = data {
-            params.append(try SurrealValue(from: data))
+            params.append(try SurrealValue.encode(data))
         }
 
         let result = try await rpc(method: "relate", params: params)
-        return try result.decode()
+        return try result.safelyDecode()
     }
 
     /// Runs a custom function.
@@ -41,7 +41,7 @@ extension SurrealDB {
         function: String,
         version: String? = nil,
         arguments: [SurrealValue]? = nil
-    ) async throws -> SurrealValue {
+    ) async throws(SurrealError) -> SurrealValue {
         var functionName = "fn::\(function)"
         if let version = version {
             functionName += ":\(version)"
@@ -59,7 +59,7 @@ extension SurrealDB {
     ///
     /// - Parameter query: The GraphQL query string.
     /// - Returns: The query result.
-    public func graphql(_ query: String) async throws -> SurrealValue {
+    public func graphql(_ query: String) async throws(SurrealError) -> SurrealValue {
         try await rpc(method: "graphql", params: [.string(query)])
     }
 
@@ -86,12 +86,12 @@ extension SurrealDB {
     /// ```
     ///
     /// - Note: Export is only supported with HTTP transport due to protocol limitations.
-    public func export(options: ExportOptions = .default) async throws -> String {
+    public func export(options: ExportOptions = .default) async throws(SurrealError) -> String {
         guard isHTTPTransport else {
             throw SurrealError.unsupportedOperation("Export is only supported with HTTP transport")
         }
 
-        let result = try await rpc(method: "export", params: [try SurrealValue(from: options)])
+        let result = try await rpc(method: "export", params: [try SurrealValue.encode(options)])
 
         guard case .string(let exportData) = result else {
             throw SurrealError.invalidResponse("Expected string export data, got \(result)")
@@ -121,7 +121,7 @@ extension SurrealDB {
     /// ```
     ///
     /// - Note: Import is only supported with HTTP transport due to protocol limitations.
-    public func `import`(_ data: String) async throws {
+    public func `import`(_ data: String) async throws(SurrealError) {
         guard isHTTPTransport else {
             throw SurrealError.unsupportedOperation("Import is only supported with HTTP transport")
         }
@@ -155,13 +155,13 @@ extension SurrealDB {
     public func insertRelation<T: Encodable, R: Decodable>(
         _ table: String,
         data: T
-    ) async throws -> R {
+    ) async throws(SurrealError) -> R {
         let params: [SurrealValue] = [
             .string(table),
-            try SurrealValue(from: data)
+            try SurrealValue.encode(data)
         ]
 
         let result = try await rpc(method: "insert", params: params)
-        return try result.decode()
+        return try result.safelyDecode()
     }
 }

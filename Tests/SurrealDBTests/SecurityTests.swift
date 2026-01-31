@@ -12,19 +12,19 @@ struct SecurityValidationTests {
         try SurrealValidator.validateTableName("`table-with-dashes`")
 
         // Invalid table names
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateTableName("users; DROP TABLE admin")
         })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateTableName("users--")
         })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateTableName("users\n--")
         })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateTableName("")
         })
     }
@@ -44,15 +44,15 @@ struct SecurityValidationTests {
         try SurrealValidator.validateFieldName("posts.author.name")
 
         // Invalid field names
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateFieldName("name; DROP TABLE users")
         })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateFieldName("id' OR '1'='1")
         })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateFieldName("user.name; DROP TABLE users")
         })
 
@@ -68,22 +68,22 @@ struct SecurityValidationTests {
         try SurrealValidator.validateFieldName("`field with spaces`")
 
         // Invalid - backticks within backtick-quoted identifiers
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try SurrealValidator.validateTableName("`bad`identifier`")
         })
     }
 
     @Test("RecordID parsing validates format")
     func recordIDValidation() throws {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: "invalid_no_colon")
         })
 
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: ":no_table")
         })
 
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: "no_id:")
         })
 

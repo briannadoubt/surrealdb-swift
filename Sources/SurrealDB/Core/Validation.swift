@@ -11,12 +11,12 @@ public struct SurrealValidator: Sendable {
     }()
 
     /// Validates a table name.
-    public static func validateTableName(_ name: String) throws {
+    public static func validateTableName(_ name: String) throws(SurrealError) {
         try validateIdentifier(name, context: "table name")
     }
 
     /// Validates a field name (supports dot notation for nested fields).
-    public static func validateFieldName(_ name: String) throws {
+    public static func validateFieldName(_ name: String) throws(SurrealError) {
         if name == "*" { return } // Special case for SELECT *
 
         // Check each component separated by dots
@@ -27,7 +27,7 @@ public struct SurrealValidator: Sendable {
     }
 
     /// Validates a generic identifier.
-    private static func validateIdentifier(_ identifier: String, context: String) throws {
+    private static func validateIdentifier(_ identifier: String, context: String) throws(SurrealError) {
         guard !identifier.isEmpty else {
             throw SurrealError.invalidQuery("Empty \(context)")
         }

@@ -26,18 +26,18 @@ final class MockTransport: Transport {
         get async { transportConfig }
     }
 
-    func connect() async throws {
+    func connect() async throws(SurrealError) {
         isConnectedInternal = true
     }
 
-    func disconnect() async throws {
+    func disconnect() async throws(SurrealError) {
         isConnectedInternal = false
         sentRequests.removeAll()
         responseQueue.removeAll()
         notificationContinuation?.finish()
     }
 
-    func send(_ request: JSONRPCRequest) async throws -> JSONRPCResponse {
+    func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
         sentRequests.append(request)
 
         // Return queued response if available

@@ -9,13 +9,13 @@ public protocol Transport: Sendable {
     var config: TransportConfig { get async }
 
     /// Establishes a connection to the database.
-    func connect() async throws
+    func connect() async throws(SurrealError)
 
     /// Closes the connection to the database.
-    func disconnect() async throws
+    func disconnect() async throws(SurrealError)
 
     /// Sends a JSON-RPC request and returns the response.
-    func send(_ request: JSONRPCRequest) async throws -> JSONRPCResponse
+    func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse
 
     /// Returns whether the transport is currently connected.
     var isConnected: Bool { get async }

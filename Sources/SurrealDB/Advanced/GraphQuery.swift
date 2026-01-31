@@ -128,7 +128,7 @@ public struct GraphQuery<T: SurrealModel> {
     }
 
     /// Execute the graph query
-    public func fetch() async throws -> [T] {
+    public func fetch() async throws(SurrealError) -> [T] {
         let query = buildQuery()
         let results = try await db.query(query)
 
@@ -137,23 +137,31 @@ public struct GraphQuery<T: SurrealModel> {
         }
 
         if case .array(let array) = firstResult {
-            return try array.map { try $0.decode() }
+            var decoded: [T] = []
+            for item in array {
+                decoded.append(try item.safelyDecode())
+            }
+            return decoded
         } else if case .object(let obj) = firstResult,
                   let result = obj["result"],
                   case .array(let array) = result {
-            return try array.map { try $0.decode() }
+            var decoded: [T] = []
+            for item in array {
+                decoded.append(try item.safelyDecode())
+            }
+            return decoded
         }
 
-        return try [firstResult.decode()]
+        return try [firstResult.safelyDecode()]
     }
 
     /// Execute and return the first result
-    public func fetchOne() async throws -> T? {
+    public func fetchOne() async throws(SurrealError) -> T? {
         try await fetch().first
     }
 
     /// Count the results without fetching them
-    public func count() async throws -> Int {
+    public func count() async throws(SurrealError) -> Int {
         let query = buildQuery().replacingOccurrences(of: "SELECT *", with: "SELECT count()")
         let results = try await db.query(query)
 
@@ -189,7 +197,7 @@ extension SurrealModel {
     public func relatedCount<Edge: EdgeModel>(
         _ keyPath: KeyPath<Self, Relation<Edge.To, Edge>>,
         using db: SurrealDB
-    ) async throws -> Int where Edge.From == Self {
+    ) async throws(SurrealError) -> Int where Edge.From == Self {
         guard let id = self.id else {
             throw SurrealError.invalidRecordID("Model must have an ID")
         }

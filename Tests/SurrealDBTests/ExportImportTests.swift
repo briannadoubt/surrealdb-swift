@@ -27,7 +27,7 @@ struct ExportImportTests {
         var thrownError: SurrealError?
         do {
             _ = try await db.export()
-        } catch let error as SurrealError {
+        } catch {
             thrownError = error
         }
 
@@ -48,7 +48,7 @@ struct ExportImportTests {
         var thrownError: SurrealError?
         do {
             try await db.import("DEFINE TABLE users;")
-        } catch let error as SurrealError {
+        } catch {
             thrownError = error
         }
 

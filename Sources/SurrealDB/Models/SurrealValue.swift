@@ -14,6 +14,9 @@ public enum SurrealValue: Sendable, Equatable {
     case object([String: SurrealValue])
 
     /// Creates a SurrealValue from any Encodable value.
+    ///
+    /// - Note: This method uses untyped throws for Codable protocol compatibility.
+    ///   For typed error handling, use ``encode(_:)`` instead.
     public init<T: Encodable>(from value: T) throws {
         let encoder = JSONEncoder()
         let data = try encoder.encode(value)
@@ -21,12 +24,47 @@ public enum SurrealValue: Sendable, Equatable {
         self = try decoder.decode(SurrealValue.self, from: data)
     }
 
+    /// Creates a SurrealValue from any Encodable value with typed error handling.
+    ///
+    /// - Parameter value: The value to encode.
+    /// - Returns: A SurrealValue representation of the encoded value.
+    /// - Throws: ``SurrealError/encodingError(_:)`` if encoding fails.
+    public static func encode<T: Encodable>(_ value: T) throws(SurrealError) -> SurrealValue {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(value)
+            let decoder = JSONDecoder()
+            return try decoder.decode(SurrealValue.self, from: data)
+        } catch {
+            throw SurrealError.encodingError("Failed to encode value: \(error)")
+        }
+    }
+
     /// Decodes this value to a specific Decodable type.
+    ///
+    /// - Note: This method uses untyped throws for Codable protocol compatibility.
+    ///   For typed error handling, use ``safelyDecode(as:)`` instead.
     public func decode<T: Decodable>(as type: T.Type = T.self) throws -> T {
         let encoder = JSONEncoder()
         let data = try encoder.encode(self)
         let decoder = JSONDecoder()
         return try decoder.decode(T.self, from: data)
+    }
+
+    /// Decodes this value to a specific Decodable type with typed error handling.
+    ///
+    /// - Parameter type: The type to decode to. Defaults to inferring from context.
+    /// - Returns: The decoded value.
+    /// - Throws: ``SurrealError/encodingError(_:)`` if decoding fails.
+    public func safelyDecode<T: Decodable>(as type: T.Type = T.self) throws(SurrealError) -> T {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(self)
+            let decoder = JSONDecoder()
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw SurrealError.encodingError("Failed to decode value: \(error)")
+        }
     }
 
     /// Accesses array elements by index.

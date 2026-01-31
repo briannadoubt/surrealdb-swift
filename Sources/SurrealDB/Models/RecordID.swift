@@ -29,8 +29,8 @@ public struct RecordID: Sendable, Hashable {
     /// Parses a record ID string in the format `table:id`.
     ///
     /// - Parameter string: The record ID string to parse.
-    /// - Throws: `SurrealError.invalidRecordID` if the format is invalid.
-    public init(parsing string: String) throws {
+    /// - Throws: ``SurrealError/invalidRecordID(_:)`` if the format is invalid.
+    public init(parsing string: String) throws(SurrealError) {
         // Split on the first colon
         guard let colonIndex = string.firstIndex(of: ":") else {
             throw SurrealError.invalidRecordID("Missing ':' separator in '\(string)'")

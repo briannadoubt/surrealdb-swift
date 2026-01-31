@@ -41,21 +41,21 @@ struct RecordIDTests {
 
     @Test("Invalid RecordID - missing colon")
     func invalidRecordIDMissingColon() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: "users")
         })
     }
 
     @Test("Invalid RecordID - empty table")
     func invalidRecordIDEmptyTable() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: ":john")
         })
     }
 
     @Test("Invalid RecordID - empty ID")
     func invalidRecordIDEmptyID() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {
             try RecordID(parsing: "users:")
         })
     }
