@@ -509,11 +509,8 @@ public actor SurrealDB {
             throw SurrealError.rpcError(code: error.code, message: error.message, data: error.data)
         }
 
-        guard let result = response.result else {
-            throw SurrealError.invalidResponse("No result in response")
-        }
-
-        return result
+        // Some methods (like 'use' and 'ping') return null on success
+        return response.result ?? .null
     }
 
     /// Helper to check if using HTTP transport (for extension methods).
@@ -527,6 +524,11 @@ public actor SurrealDB {
     }
 
     private func decodeArray<T: Decodable>(_ value: SurrealValue) throws(SurrealError) -> [T] {
+        // Handle null (e.g., when selecting a non-existent record)
+        if case .null = value {
+            return []
+        }
+
         guard case .array(let array) = value else {
             // Single value - wrap in array
             let decoded: T = try value.safelyDecode()

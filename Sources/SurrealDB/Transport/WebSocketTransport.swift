@@ -142,9 +142,14 @@ public final class WebSocketTransport: Transport, Sendable {
             return
         }
 
-        // Try to decode as live query notification
-        if let notification = try? decoder.decode(LiveQueryNotification.self, from: data) {
-            notificationContinuation?.yield(notification)
+        // Try to decode as live query notification (wrapped in result field)
+        // Format: {"result": {"action": "...", "id": "...", "result": {...}}}
+        struct NotificationWrapper: Codable {
+            let result: LiveQueryNotification
+        }
+
+        if let wrapper = try? decoder.decode(NotificationWrapper.self, from: data) {
+            notificationContinuation?.yield(wrapper.result)
             return
         }
 

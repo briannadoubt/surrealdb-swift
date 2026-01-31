@@ -9,6 +9,11 @@ public struct RootAuth: Sendable, Codable {
         self.username = username
         self.password = password
     }
+
+    enum CodingKeys: String, CodingKey {
+        case username = "user"
+        case password = "pass"
+    }
 }
 
 /// Namespace-level authentication credentials.
