@@ -9,12 +9,17 @@ import Testing
 /// 2. Run tests: `SURREALDB_TEST=1 swift test`
 @Suite("Integration Tests", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
 struct IntegrationTests {
+    /// Generate a unique namespace for this test to avoid conflicts
+    private func uniqueNamespace() -> String {
+        "test_\(UUID().uuidString.replacingOccurrences(of: "-", with: "_"))"
+    }
+
     @Test("Connection test")
     func testConnection() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         let connected = await db.isConnected
         #expect(connected)
@@ -27,7 +32,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         try await db.ping()
 
@@ -39,7 +44,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         let version = try await db.version()
         #expect(!version.isEmpty)
@@ -53,7 +58,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         struct User: Codable {
             let name: String
@@ -92,7 +97,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         struct TestUser: Codable {
             let name: String
@@ -130,7 +135,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         let (queryId, stream) = try await db.live("users")
 
@@ -203,7 +208,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         struct User: Codable {
             let name: String
@@ -243,7 +248,7 @@ struct IntegrationTests {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
-        try await db.use(namespace: "test", database: "test")
+        try await db.use(namespace: uniqueNamespace(), database: "test")
 
         struct Person: Codable {
             let name: String
