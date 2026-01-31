@@ -15,8 +15,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Select Xcode (includes Swift 6.0)
-      run: sudo xcode-select -s /Applications/Xcode_16.1.app
+    - name: Select Xcode (includes Swift 6.2)
+      run: sudo xcode-select -s /Applications/Xcode_16.3.app
 
     - name: Show Swift version
       run: swift --version
@@ -31,7 +31,7 @@ jobs:
     name: Test on Ubuntu
     runs-on: ubuntu-latest
     container:
-      image: swift:6.0
+      image: swift:6.2
 
     steps:
     - name: Checkout code
