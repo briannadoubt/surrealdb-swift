@@ -1,9 +1,8 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 @Suite("KeyPath Field Extraction")
 struct KeyPathExtractionTests {
-
     // MARK: - Simple Field Extraction
 
     @Test("Extract simple string field")
@@ -93,12 +92,12 @@ struct KeyPathExtractionTests {
     @Test("Extract field with underscores")
     func extractFieldWithUnderscores() {
         struct Model: Codable, Sendable {
-            var user_name: String
-            var email_address: String
+            var userName: String
+            var emailAddress: String
         }
 
-        #expect(extractFieldName(from: \Model.user_name) == "user_name")
-        #expect(extractFieldName(from: \Model.email_address) == "email_address")
+        #expect(extractFieldName(from: \Model.userName) == "userName")
+        #expect(extractFieldName(from: \Model.emailAddress) == "emailAddress")
     }
 
     @Test("Extract field with numbers")
@@ -115,11 +114,11 @@ struct KeyPathExtractionTests {
     @Test("Extract single character field")
     func extractSingleCharacterField() {
         struct Model: Codable, Sendable {
-            var x: Int
-            var y: Int
+            var xCoord: Int
+            var yCoord: Int
         }
 
-        #expect(extractFieldName(from: \Model.x) == "x")
-        #expect(extractFieldName(from: \Model.y) == "y")
+        #expect(extractFieldName(from: \Model.xCoord) == "xCoord")
+        #expect(extractFieldName(from: \Model.yCoord) == "yCoord")
     }
 }

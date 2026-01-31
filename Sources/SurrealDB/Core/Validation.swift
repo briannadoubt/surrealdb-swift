@@ -5,7 +5,8 @@ public struct SurrealValidator: Sendable {
     /// Regex pattern for valid unquoted identifiers.
     /// Matches: alphanumeric with underscores, must start with letter/underscore.
     private static let identifierRegex: NSRegularExpression = {
-        // This pattern is a compile-time constant and should never fail
+        // This pattern is a compile-time constant and will never fail
+        // swiftlint:disable:next force_try
         try! NSRegularExpression(pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$")
     }()
 

@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("Export and Import Tests")
 struct ExportImportTests {
@@ -16,7 +16,7 @@ struct ExportImportTests {
 
         // Verify it's encodable
         let encoder = JSONEncoder()
-        let _ = try encoder.encode(customOptions)
+        _ = try encoder.encode(customOptions)
     }
 
     @Test("Export throws error on WebSocket transport")
@@ -26,7 +26,7 @@ struct ExportImportTests {
 
         var thrownError: SurrealError?
         do {
-            let _ = try await db.export()
+            _ = try await db.export()
         } catch let error as SurrealError {
             thrownError = error
         }

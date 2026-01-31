@@ -164,5 +164,4 @@ extension SurrealDB {
         let result = try await rpc(method: "insert", params: params)
         return try result.decode()
     }
-
 }

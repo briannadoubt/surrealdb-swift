@@ -1,5 +1,5 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 @Suite("Advanced Features Tests")
 struct AdvancedFeaturesTests {
@@ -77,7 +77,7 @@ struct AdvancedFeaturesTests {
         // This will fail the transport check
         var thrownError: SurrealError?
         do {
-            let _ = try await db.subscribeLive("test-query-id")
+            _ = try await db.subscribeLive("test-query-id")
         } catch let error as SurrealError {
             thrownError = error
         }

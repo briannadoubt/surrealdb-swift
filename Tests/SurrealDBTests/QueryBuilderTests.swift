@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("Query Builder Tests")
 struct QueryBuilderTests {

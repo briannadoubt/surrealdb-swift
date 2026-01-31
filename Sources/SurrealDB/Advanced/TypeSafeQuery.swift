@@ -35,7 +35,7 @@ extension SurrealDB {
 
         // ORDER BY
         if !orderBy.isEmpty {
-            let orders = orderBy.map { (keyPath, ascending) in
+            let orders = orderBy.map { keyPath, ascending in
                 let field = extractFieldName(from: keyPath)
                 return "\(field) \(ascending ? "ASC" : "DESC")"
             }

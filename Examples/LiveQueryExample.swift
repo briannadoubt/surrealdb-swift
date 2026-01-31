@@ -35,7 +35,6 @@ struct LiveQueryExample {
                     print("❌ DELETE:", notification.result)
                 case .close:
                     print("🔒 CLOSE: Live query closed")
-                    break
                 }
             }
         }

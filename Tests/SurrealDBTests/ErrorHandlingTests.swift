@@ -1,9 +1,8 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 @Suite("Error Handling")
 struct ErrorHandlingTests {
-
     // MARK: - SurrealError Tests
 
     @Test("SurrealError connection error")

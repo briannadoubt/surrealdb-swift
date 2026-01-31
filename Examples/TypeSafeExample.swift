@@ -3,94 +3,63 @@ import SurrealDB
 
 // This example demonstrates the type-safe API with graph relationships
 
+struct UserData {
+    let alice: User
+    let bob: User
+    let charlie: User
+}
+
+struct PostData {
+    let post1: Post
+    let post2: Post
+}
+
 @main
 struct TypeSafeExample {
     static func main() async throws {
         print("=== Type-Safe SurrealDB Example ===\n")
 
-        // Connect
+        let db = try await setupDatabase()
+        try await runExample(with: db)
+        try await db.disconnect()
+        print("\n✅ Done!")
+    }
+
+    static func setupDatabase() async throws -> SurrealDB {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
         try await db.signin(.root(RootAuth(username: "root", password: "root")))
         try await db.use(namespace: "test", database: "test")
+        return db
+    }
 
-        // Define models
-        struct User: SurrealModel {
-            @ID var id: RecordID?
-            var name: String
-            var email: String
-            var age: Int
-            var verified: Bool
+    static func runExample(with db: SurrealDB) async throws {
+        let users = try await createUsers(db: db)
+        try await queryAdults(db: db)
+        let posts = try await createPosts(db: db)
+        try await createRelationships(users: users, posts: posts, db: db)
+        try await loadAndQueryData(users: users, posts: posts, db: db)
+        try await cleanup(db: db)
+    }
 
-            @Relation(edge: Authored.self)
-            var posts: [Post]
-
-            @Relation(edge: Follows.self, direction: .out)
-            var following: [User]
-
-            @Computed("count(->authored->post)")
-            var postCount: Int?
-        }
-
-        struct Post: SurrealModel {
-            @ID var id: RecordID?
-            var title: String
-            var content: String
-            var publishedAt: Date
-
-            @Relation(edge: Authored.self, direction: .in)
-            var author: User
-        }
-
-        struct Authored: EdgeModel {
-            typealias From = User
-            typealias To = Post
-            var publishedAt: Date
-            var featured: Bool
-        }
-
-        struct Follows: EdgeModel {
-            typealias From = User
-            typealias To = User
-            var since: Date
-        }
-
+    static func createUsers(db: SurrealDB) async throws -> UserData {
         print("1. Creating users...")
 
-        // Create users
-        let alice = User(
-            id: nil,
-            name: "Alice",
-            email: "alice@example.com",
-            age: 28,
-            verified: true
-        )
-
-        let bob = User(
-            id: nil,
-            name: "Bob",
-            email: "bob@example.com",
-            age: 32,
-            verified: true
-        )
-
-        let charlie = User(
-            id: nil,
-            name: "Charlie",
-            email: "charlie@example.com",
-            age: 17,
-            verified: false
-        )
+        let alice = User(id: nil, name: "Alice", email: "alice@example.com", age: 28, verified: true)
+        let bob = User(id: nil, name: "Bob", email: "bob@example.com", age: 32, verified: true)
+        let charlie = User(id: nil, name: "Charlie", email: "charlie@example.com", age: 17, verified: false)
 
         let savedAlice: User = try await db.create("users:alice", data: alice)
         let savedBob: User = try await db.create("users:bob", data: bob)
         let savedCharlie: User = try await db.create("users:charlie", data: charlie)
 
         print("   ✅ Created 3 users")
+        return UserData(alice: savedAlice, bob: savedBob, charlie: savedCharlie)
+    }
 
+    static func queryAdults(db: SurrealDB) async throws {
         print("\n2. Type-safe query - Adults only...")
 
-        // Type-safe query with KeyPath predicates
         let adults = try await db.query(User.self)
             .where(\User.age >= 18)
             .where(\User.verified == true)
@@ -101,17 +70,17 @@ struct TypeSafeExample {
         for user in adults {
             print("   - \(user.name), age \(user.age)")
         }
+    }
 
+    static func createPosts(db: SurrealDB) async throws -> PostData {
         print("\n3. Creating posts...")
 
-        // Create posts
         let post1 = Post(
             id: nil,
             title: "Introduction to SurrealDB",
             content: "SurrealDB is a powerful database...",
             publishedAt: Date()
         )
-
         let post2 = Post(
             id: nil,
             title: "Swift Concurrency",
@@ -123,45 +92,30 @@ struct TypeSafeExample {
         let savedPost2: Post = try await db.create("posts:post2", data: post2)
 
         print("   ✅ Created 2 posts")
+        return PostData(post1: savedPost1, post2: savedPost2)
+    }
 
+    static func createRelationships(users: UserData, posts: PostData, db: SurrealDB) async throws {
         print("\n4. Creating relationships...")
 
-        // Create author relationships
-        try await savedAlice.relate(
-            to: savedPost1,
-            via: Authored(publishedAt: Date(), featured: true),
-            using: db
-        )
-
-        try await savedBob.relate(
-            to: savedPost2,
-            via: Authored(publishedAt: Date(), featured: false),
-            using: db
-        )
-
-        // Create follow relationship
-        try await savedAlice.relate(
-            to: savedBob,
-            via: Follows(since: Date()),
-            using: db
-        )
+        try await users.alice.relate(to: posts.post1, via: Authored(publishedAt: Date(), featured: true), using: db)
+        try await users.bob.relate(to: posts.post2, via: Authored(publishedAt: Date(), featured: false), using: db)
+        try await users.alice.relate(to: users.bob, via: Follows(since: Date()), using: db)
 
         print("   ✅ Alice authored post1")
         print("   ✅ Bob authored post2")
         print("   ✅ Alice follows Bob")
+    }
 
+    static func loadAndQueryData(users: UserData, posts: PostData, db: SurrealDB) async throws {
         print("\n5. Loading relationships...")
-
-        // Load posts for a user
-        let alicePosts = try await savedAlice.load(\.posts, using: db)
+        let alicePosts = try await users.alice.load(\.posts, using: db)
         print("   Alice's posts:")
         for post in alicePosts {
             print("   - \(post.title)")
         }
 
         print("\n6. Complex query with ordering...")
-
-        // Query recent posts
         let recentPosts = try await db.query(Post.self)
             .select(\Post.title, \Post.publishedAt)
             .orderBy(\Post.publishedAt, ascending: false)
@@ -174,9 +128,7 @@ struct TypeSafeExample {
         }
 
         print("\n7. Graph traversal query...")
-
-        // Raw query for graph traversal
-        guard let aliceId = savedAlice.id else {
+        guard let aliceId = users.alice.id else {
             throw SurrealError.invalidRecordID("Alice has no ID")
         }
 
@@ -185,18 +137,58 @@ struct TypeSafeExample {
             ->follows->users
             ->authored->posts
         """
-
         let results = try await db.query(query)
         print("   Posts by people Alice follows: \(results.count) results")
+    }
 
+    static func cleanup(db: SurrealDB) async throws {
         print("\n8. Cleanup...")
         try await db.delete("users")
         try await db.delete("posts")
         print("   ✅ Cleaned up test data")
-
-        try await db.disconnect()
-        print("\n✅ Done!")
     }
+}
+
+// MARK: - Models
+
+struct User: SurrealModel {
+    @ID var id: RecordID?
+    var name: String
+    var email: String
+    var age: Int
+    var verified: Bool
+
+    @Relation(edge: Authored.self)
+    var posts: [Post]
+
+    @Relation(edge: Follows.self, direction: .out)
+    var following: [User]
+
+    @Computed("count(->authored->post)")
+    var postCount: Int?
+}
+
+struct Post: SurrealModel {
+    @ID var id: RecordID?
+    var title: String
+    var content: String
+    var publishedAt: Date
+
+    @Relation(edge: Authored.self, direction: .in)
+    var author: User
+}
+
+struct Authored: EdgeModel {
+    typealias From = User
+    typealias To = Post
+    var publishedAt: Date
+    var featured: Bool
+}
+
+struct Follows: EdgeModel {
+    typealias From = User
+    typealias To = User
+    var since: Date
 }
 
 // MARK: - Extension for relate functionality

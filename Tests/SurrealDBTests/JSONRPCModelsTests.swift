@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("JSON-RPC Models Tests")
 struct JSONRPCModelsTests {
@@ -13,7 +13,9 @@ struct JSONRPCModelsTests {
         )
 
         let data = try JSONEncoder().encode(request)
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw SurrealError.invalidResponse("Expected dictionary")
+        }
 
         #expect(json["jsonrpc"] as? String == "2.0")
         #expect(json["id"] as? String == "test-123")

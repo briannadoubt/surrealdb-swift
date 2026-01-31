@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 /// Integration tests that require a running SurrealDB instance.
 ///
@@ -9,7 +9,6 @@ import Foundation
 /// 2. Run tests: `SURREALDB_TEST=1 swift test`
 @Suite("Integration Tests")
 struct IntegrationTests {
-
     @Test("Connection test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
     func testConnection() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
@@ -118,7 +117,7 @@ struct IntegrationTests {
             variables: ["minAge": .int(25)]
         )
 
-        #expect(results.count > 0)
+        #expect(!results.isEmpty)
 
         // Cleanup
         try await db.delete("users")
