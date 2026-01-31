@@ -74,6 +74,12 @@ jobs:
         surrealdb_log: info
         surrealdb_additional_args: memory
 
+    - name: Wait for SurrealDB WebSocket
+      run: sleep 2
+
+    - name: Test SurrealDB connection
+      run: curl -v http://localhost:8000/health
+
     - name: Run integration tests
       run: SURREALDB_TEST=1 swift test
       env:
