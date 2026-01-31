@@ -173,11 +173,10 @@ let db = try SurrealDB(url: "wss://production.example.com/rpc", config: config)
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability, please report it to:
-- Email: security@example.com
-- GitHub Security Advisories: [Report a vulnerability](https://github.com/yourusername/surrealdb-swift/security/advisories/new)
+If you discover a security vulnerability, please report it via GitHub Security Advisories:
+- [Report a vulnerability](https://github.com/briannadoubt/surrealdb-swift/security/advisories/new)
 
-Do not open public issues for security vulnerabilities.
+**Do not open public issues for security vulnerabilities.**
 
 ## See Also
 

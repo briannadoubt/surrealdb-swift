@@ -9,14 +9,14 @@ on:
 jobs:
   test:
     name: Test on macOS
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Select Xcode (includes Swift 6.0)
-      run: sudo xcode-select -s /Applications/Xcode_16.1.app
+    - name: Select Xcode 26.2
+      run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
     - name: Show Swift version
       run: swift --version
@@ -31,7 +31,7 @@ jobs:
     name: Test on Ubuntu
     runs-on: ubuntu-latest
     container:
-      image: swift:6.0
+      image: swift:6.2
 
     steps:
     - name: Checkout code

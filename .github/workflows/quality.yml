@@ -7,7 +7,7 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    runs-on: macos-14
+    runs-on: macos-26
     if: false  # Disabled until .swiftlint.yml is configured
 
     steps:
@@ -24,14 +24,14 @@ jobs:
 
   documentation:
     name: Documentation Check
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Select Xcode (includes Swift 6.0)
-      run: sudo xcode-select -s /Applications/Xcode_16.1.app
+    - name: Select Xcode 26.2
+      run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
     - name: Verify DocC builds
       run: |
@@ -50,20 +50,88 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Check for security issues in dependencies
+    - name: Dependency audit
       run: |
-        echo "Checking Package.swift for security issues..."
-        # Add dependency security scanning here if needed
-        echo "No dependency security scanner configured yet"
+        echo "📦 Checking dependencies..."
 
-    - name: Check for hardcoded secrets
-      run: |
-        echo "Scanning for potential secrets..."
-        if grep -r -i "password.*=.*\".*\"" --include="*.swift" .; then
-          echo "Warning: Found potential hardcoded passwords"
+        # List all dependencies
+        if [ -f Package.swift ]; then
+          echo "Dependencies in Package.swift:"
+          grep -A 20 "dependencies:" Package.swift | grep "package(url:" || echo "  No external dependencies found (DocC plugin only)"
         fi
-        if grep -r "sk-" --include="*.swift" .; then
-          echo "Warning: Found potential API keys"
+
+        # Check for suspicious dependency URLs
+        if grep -E "package\(url:.*\"(http://|git@)" Package.swift; then
+          echo "⚠️  WARNING: Found non-HTTPS dependency URL"
           exit 1
         fi
-        echo "No obvious secrets found"
+
+        echo "✅ All dependencies use secure HTTPS URLs"
+
+    - name: Secret scanning
+      run: |
+        echo "🔍 Scanning for secrets and credentials..."
+
+        FOUND_ISSUES=0
+
+        # Check for hardcoded passwords (exclude safe test examples)
+        if grep -r -i "password.*=.*\"" --include="*.swift" . | \
+           grep -v "root.*root" | \
+           grep -v "example" | \
+           grep -v "\.build" | \
+           grep -v "test" -i; then
+          echo "❌ Found potential hardcoded passwords"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for API keys and tokens
+        if grep -r -E "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})" --include="*.swift" .; then
+          echo "❌ Found potential API keys or tokens"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for private keys
+        if grep -r "BEGIN.*PRIVATE KEY" --include="*.swift" --include="*.pem" .; then
+          echo "❌ Found private key material"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for AWS credentials
+        if grep -r -E "aws_access_key_id|aws_secret_access_key" --include="*.swift" .; then
+          echo "❌ Found AWS credentials"
+          FOUND_ISSUES=1
+        fi
+
+        # Check for environment variables with credentials
+        if grep -r -E "export.*=(.*password|.*secret|.*key)" --include="*.sh" .; then
+          echo "❌ Found credentials in shell scripts"
+          FOUND_ISSUES=1
+        fi
+
+        if [ $FOUND_ISSUES -eq 1 ]; then
+          echo "❌ Security scan failed - found potential secrets"
+          exit 1
+        fi
+
+        echo "✅ No secrets or credentials found"
+
+    - name: File permission check
+      run: |
+        echo "🔒 Checking file permissions..."
+
+        # Check for executable files that shouldn't be
+        if find . -type f -name "*.swift" -perm -111 | grep -v ".build"; then
+          echo "⚠️  WARNING: Found executable Swift files (unusual)"
+        fi
+
+        echo "✅ File permissions check complete"
+
+    - name: License compliance
+      run: |
+        echo "📜 Checking for license compliance..."
+
+        if [ ! -f LICENSE ]; then
+          echo "⚠️  WARNING: No LICENSE file found"
+        else
+          echo "✅ LICENSE file present"
+        fi

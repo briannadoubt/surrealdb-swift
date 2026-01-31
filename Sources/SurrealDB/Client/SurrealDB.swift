@@ -19,7 +19,7 @@ public actor SurrealDB {
     private var currentNamespace: String?
     private var currentDatabase: String?
     private var authToken: String?
-    private var liveQueryStreams: [String: AsyncStream<LiveQueryNotification>.Continuation] = [:]
+    private var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
 
     /// Creates a new SurrealDB client.
@@ -76,12 +76,27 @@ public actor SurrealDB {
         notificationRouterTask = nil
 
         // Finish all live query streams
-        for (_, continuation) in liveQueryStreams {
-            continuation.finish()
+        for (_, continuations) in liveQueryStreams {
+            for continuation in continuations {
+                continuation.finish()
+            }
         }
         liveQueryStreams.removeAll()
 
         try await transport.disconnect()
+    }
+
+    /// Gracefully closes the connection to the SurrealDB server.
+    ///
+    /// This method provides API parity with other SurrealDB SDKs and is functionally
+    /// equivalent to ``disconnect()``.
+    ///
+    /// Example:
+    /// ```swift
+    /// try await db.close()
+    /// ```
+    public func close() async throws {
+        try await disconnect()
     }
 
     /// Returns whether the client is connected.
@@ -320,6 +335,34 @@ public actor SurrealDB {
         return try result.decode()
     }
 
+    /// Upserts (updates or inserts) records.
+    ///
+    /// This method creates a new record if it doesn't exist, or updates it if it does.
+    /// Works with both table names (affects matching records) and specific record IDs.
+    ///
+    /// - Parameters:
+    ///   - target: The table name or record ID.
+    ///   - data: The data to upsert.
+    /// - Returns: The upserted record(s).
+    ///
+    /// Example:
+    /// ```swift
+    /// // Upsert a specific record
+    /// let user: User = try await db.upsert("users:john", data: User(name: "John", age: 30))
+    ///
+    /// // Upsert with table name
+    /// let users: [User] = try await db.upsert("users", data: userData)
+    /// ```
+    public func upsert<T: Encodable, R: Decodable>(_ target: String, data: T) async throws -> R {
+        let params: [SurrealValue] = [
+            .string(target),
+            try SurrealValue(from: data)
+        ]
+
+        let result = try await rpc(method: "upsert", params: params)
+        return try result.decode()
+    }
+
     /// Applies JSON Patch operations to records.
     ///
     /// - Parameters:
@@ -364,7 +407,11 @@ public actor SurrealDB {
         }
 
         let stream = AsyncStream<LiveQueryNotification> { continuation in
-            liveQueryStreams[queryId] = continuation
+            if liveQueryStreams[queryId] != nil {
+                liveQueryStreams[queryId]?.append(continuation)
+            } else {
+                liveQueryStreams[queryId] = [continuation]
+            }
         }
 
         return (queryId, stream)
@@ -376,9 +423,72 @@ public actor SurrealDB {
     public func kill(_ queryId: String) async throws {
         _ = try await rpc(method: "kill", params: [.string(queryId)])
 
-        if let continuation = liveQueryStreams.removeValue(forKey: queryId) {
-            continuation.finish()
+        if let continuations = liveQueryStreams.removeValue(forKey: queryId) {
+            for continuation in continuations {
+                continuation.finish()
+            }
         }
+    }
+
+    /// Subscribes to notifications from an existing live query.
+    ///
+    /// This method allows subscribing to an existing live query by its ID,
+    /// enabling multiple listeners for the same query. All subscriptions receive
+    /// the same notifications, making it useful for broadcasting database changes
+    /// to multiple parts of your application.
+    ///
+    /// Multiple calls to ``live(_:diff:)`` and ``subscribeLive(_:)`` with the same
+    /// query ID will create independent streams that all receive notifications.
+    ///
+    /// - Parameter queryId: The live query UUID to subscribe to.
+    /// - Returns: A stream of live query notifications.
+    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using HTTP transport.
+    ///
+    /// Example:
+    /// ```swift
+    /// // Create a live query
+    /// let (queryId, stream1) = try await db.live("users")
+    ///
+    /// // Subscribe to the same query from another context
+    /// let stream2 = try await db.subscribeLive(queryId)
+    /// let stream3 = try await db.subscribeLive(queryId)
+    ///
+    /// // All streams receive the same notifications
+    /// Task {
+    ///     for await notification in stream1 {
+    ///         print("Stream 1:", notification.action)
+    ///     }
+    /// }
+    ///
+    /// Task {
+    ///     for await notification in stream2 {
+    ///         print("Stream 2:", notification.action)
+    ///     }
+    /// }
+    ///
+    /// Task {
+    ///     for await notification in stream3 {
+    ///         print("Stream 3:", notification.action)
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Note: When ``kill(_:)`` is called, all streams subscribed to that query ID
+    ///   will be finished and stopped receiving notifications.
+    public func subscribeLive(_ queryId: String) async throws -> AsyncStream<LiveQueryNotification> {
+        guard transport is WebSocketTransport else {
+            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
+        }
+
+        let stream = AsyncStream<LiveQueryNotification> { continuation in
+            if liveQueryStreams[queryId] != nil {
+                liveQueryStreams[queryId]?.append(continuation)
+            } else {
+                liveQueryStreams[queryId] = [continuation]
+            }
+        }
+
+        return stream
     }
 
     // MARK: - Internal Helpers
@@ -403,6 +513,16 @@ public actor SurrealDB {
         return result
     }
 
+    /// Helper to check if using HTTP transport (for extension methods).
+    internal var isHTTPTransport: Bool {
+        transport is HTTPTransport
+    }
+
+    /// Helper to check if using WebSocket transport (for extension methods).
+    internal var isWebSocketTransport: Bool {
+        transport is WebSocketTransport
+    }
+
     private func decodeArray<T: Decodable>(_ value: SurrealValue) throws -> [T] {
         guard case .array(let array) = value else {
             // Single value - wrap in array
@@ -417,14 +537,20 @@ public actor SurrealDB {
         let stream = await transport.notifications
 
         for await notification in stream {
-            // Route notification to the correct stream
+            // Route notification to all subscribed streams
             if let queryId = notification.id,
-               let continuation = liveQueryStreams[queryId] {
-                continuation.yield(notification)
+               let continuations = liveQueryStreams[queryId] {
+                for continuation in continuations {
+                    continuation.yield(notification)
 
-                // If it's a CLOSE notification, finish the stream
+                    // If it's a CLOSE notification, finish the stream
+                    if notification.action == .close {
+                        continuation.finish()
+                    }
+                }
+
+                // Remove all continuations after CLOSE
                 if notification.action == .close {
-                    continuation.finish()
                     liveQueryStreams.removeValue(forKey: queryId)
                 }
             }

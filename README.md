@@ -219,6 +219,9 @@ let user: User = try await db.select("users:john")
 // Update
 let updated: User = try await db.update("users:john", data: updates)
 
+// Upsert (create or update)
+let user: User = try await db.upsert("users:john", data: userData)
+
 // Merge
 let merged: User = try await db.merge("users:john", data: partialUpdates)
 
@@ -248,12 +251,73 @@ let results = try await db.query("""
 let from = RecordID(table: "users", id: "john")
 let to = RecordID(table: "posts", id: "post123")
 
+// Create relationship using relate()
 let edge: AuthoredEdge = try await db.relate(
     from: from,
     via: "authored",
     to: to,
     data: AuthoredData(publishedAt: Date())
 )
+
+// Or use insertRelation() for direct edge insertion
+struct EdgeData: Codable {
+    let `in`: String
+    let out: String
+    let createdAt: Date
+}
+
+let relationship: EdgeData = try await db.insertRelation(
+    "authored",
+    data: EdgeData(in: "users:john", out: "posts:123", createdAt: Date())
+)
+```
+
+### Live Queries
+
+Subscribe to real-time database changes:
+
+```swift
+// Create a live query
+let (queryId, stream) = try await db.live("users")
+
+for await notification in stream {
+    switch notification.action {
+    case .create:
+        print("New user:", notification.result)
+    case .update:
+        print("Updated user:", notification.result)
+    case .delete:
+        print("Deleted user:", notification.result)
+    case .close:
+        break
+    }
+}
+
+// Subscribe to an existing live query from another context
+let additionalStream = try await db.subscribeLive(queryId)
+
+// Kill the live query when done
+try await db.kill(queryId)
+```
+
+### Backup and Restore
+
+Export and import database contents (HTTP transport only):
+
+```swift
+// Export all data to SurrealQL
+let backup = try await db.export()
+try backup.write(to: URL(fileURLWithPath: "backup.surql"))
+
+// Export specific tables
+let userBackup = try await db.export(options: ExportOptions(
+    tables: ["users", "profiles"],
+    functions: false
+))
+
+// Import from SurrealQL file
+let sql = try String(contentsOf: URL(fileURLWithPath: "backup.surql"))
+try await db.import(sql)
 ```
 
 ## Transport Options
@@ -266,13 +330,18 @@ WebSocket transport provides full functionality including live queries:
 let db = try SurrealDB(url: "ws://localhost:8000/rpc", transportType: .websocket)
 ```
 
+**Supported operations**: All operations including live queries, variables, and subscriptions.
+
 ### HTTP
 
-HTTP transport is simpler but doesn't support live queries or variables:
+HTTP transport is simpler but has some limitations:
 
 ```swift
 let db = try SurrealDB(url: "http://localhost:8000", transportType: .http)
 ```
+
+**Supported operations**: CRUD, queries, authentication, export/import.
+**Limitations**: No live queries, no variables (`let`/`unset`), no subscriptions.
 
 ## Error Handling
 
