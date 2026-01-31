@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("SurrealValue Tests")
 struct SurrealValueTests {

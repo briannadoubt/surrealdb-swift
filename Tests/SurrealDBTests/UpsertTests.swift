@@ -1,5 +1,5 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 @Suite("Upsert Tests")
 struct UpsertTests {

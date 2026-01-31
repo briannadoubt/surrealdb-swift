@@ -1,15 +1,13 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("Property Wrappers")
 struct PropertyWrapperTests {
-
     // MARK: - @ID Property Wrapper Tests
 
     @Suite("@ID Property Wrapper")
     struct IDTests {
-
         @Test("ID encodes and decodes correctly")
         func idCodableRoundTrip() throws {
             var id = ID(wrappedValue: RecordID(table: "users", id: "123"))
@@ -71,7 +69,6 @@ struct PropertyWrapperTests {
 
     @Suite("@Relation Property Wrapper")
     struct RelationTests {
-
         @Test("Relation starts unloaded")
         func relationStartsUnloaded() {
             let relation = Relation<TestPost, TestAuthored>(edge: TestAuthored.self, direction: .out)
@@ -116,7 +113,7 @@ struct PropertyWrapperTests {
             let loadedJSON = String(data: loadedData, encoding: .utf8)!
 
             // Should contain posts in JSON
-            #expect(loadedJSON.contains("title") || loadedJSON.count > 0)
+            #expect(loadedJSON.contains("title") || !loadedJSON.isEmpty)
         }
 
         @Test("Relation supports all directions")
@@ -135,7 +132,6 @@ struct PropertyWrapperTests {
 
     @Suite("@Computed Property Wrapper")
     struct ComputedTests {
-
         @Test("Computed does not encode in models")
         func computedDoesNotEncode() {
             // Computed fields should not be encoded when part of a model
@@ -176,7 +172,6 @@ struct PropertyWrapperTests {
 
     @Suite("@Index Property Wrapper")
     struct IndexTests {
-
         @Test("Index wraps value correctly")
         func indexWrapsValue() {
             let indexed = Index(wrappedValue: "test@example.com", type: .unique)

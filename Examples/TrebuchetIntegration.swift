@@ -101,10 +101,11 @@ public actor UserService<DB: SurrealDBService> {
     }
 
     public func getAdults() async throws -> [User] {
-        try await db.query(
+        let results = try await db.query(
             "SELECT * FROM users WHERE age >= $minAge",
             variables: ["minAge": .int(18)]
-        ).first?.decode() ?? []
+        )
+        return try results.first?.decode() ?? []
     }
 
     public func createUser(name: String, email: String, age: Int) async throws -> User {
@@ -224,7 +225,10 @@ public struct AnySurrealDBService: SurrealDBService {
         self._select = { try await service.select($0) }
         self._create = { target, data in
             if let data = data {
-                return try await service.create(target, data: data as! any Encodable)
+                guard let encodableData = data as? any Encodable else {
+                    throw SurrealError.encodingError("Data is not Encodable")
+                }
+                return try await service.create(target, data: encodableData)
             } else {
                 return try await service.create(target, data: nil as String?)
             }
@@ -241,11 +245,17 @@ public struct AnySurrealDBService: SurrealDBService {
     }
 
     public func select<T: Decodable>(_ target: String) async throws -> [T] {
-        try await _select(target) as! [T]
+        guard let result = try await _select(target) as? [T] else {
+            throw SurrealError.invalidResponse("Expected array of \(T.self)")
+        }
+        return result
     }
 
     public func create<T: Encodable, R: Decodable>(_ target: String, data: T?) async throws -> R {
-        try await _create(target, data) as! R
+        guard let result = try await _create(target, data) as? R else {
+            throw SurrealError.invalidResponse("Expected \(R.self)")
+        }
+        return result
     }
 
     public func query(_ sql: String, variables: [String: SurrealValue]?) async throws -> [SurrealValue] {

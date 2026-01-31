@@ -1,9 +1,8 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 @Suite("Security - Validation")
 struct SecurityValidationTests {
-
     @Test("Table name validation")
     func tableNameValidation() throws {
         // Valid table names
@@ -13,21 +12,21 @@ struct SecurityValidationTests {
         try SurrealValidator.validateTableName("`table-with-dashes`")
 
         // Invalid table names
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateTableName("users; DROP TABLE admin")
-        }
+        })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateTableName("users--")
-        }
+        })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateTableName("users\n--")
-        }
+        })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateTableName("")
-        }
+        })
     }
 
     @Test("Field name validation")
@@ -45,17 +44,17 @@ struct SecurityValidationTests {
         try SurrealValidator.validateFieldName("posts.author.name")
 
         // Invalid field names
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateFieldName("name; DROP TABLE users")
-        }
+        })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateFieldName("id' OR '1'='1")
-        }
+        })
 
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateFieldName("user.name; DROP TABLE users")
-        }
+        })
 
         // Note: Empty string doesn't throw because "".split(separator: ".") returns empty array
         // This is a known limitation of the current validation implementation
@@ -69,24 +68,24 @@ struct SecurityValidationTests {
         try SurrealValidator.validateFieldName("`field with spaces`")
 
         // Invalid - backticks within backtick-quoted identifiers
-        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } }, when: {
             try SurrealValidator.validateTableName("`bad`identifier`")
-        }
+        })
     }
 
     @Test("RecordID parsing validates format")
     func recordIDValidation() throws {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: "invalid_no_colon")
-        }
+        })
 
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: ":no_table")
-        }
+        })
 
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: "no_id:")
-        }
+        })
 
         // Valid formats should work
         let valid1 = try RecordID(parsing: "users:john")
@@ -101,7 +100,6 @@ struct SecurityValidationTests {
 
 @Suite("Security - SQL Injection Prevention")
 struct SecurityInjectionTests {
-
     @Test("SQL injection in WHERE clause prevented")
     func sqlInjectionWhereClause() async throws {
         let mockTransport = MockTransport()
@@ -116,7 +114,7 @@ struct SecurityInjectionTests {
             .where(field: "id", op: .equal, value: .string(maliciousInput))
 
         // Execute to capture the request (MockTransport provides default query response)
-        let _ = try await query.execute()
+        _ = try await query.execute()
 
         let request = await mockTransport.lastRequest()
         #expect(request != nil)
@@ -141,7 +139,7 @@ struct SecurityInjectionTests {
         let mockTransport = MockTransport()
         let db = SurrealDB(transport: mockTransport)
 
-        let _ = try await db.query()
+        _ = try await db.query()
             .select("*")
             .from("users")
             .whereRaw("age >= $minAge AND status = $status", variables: [
@@ -193,7 +191,7 @@ struct SecurityInjectionTests {
         for (op, value) in operators {
             await mockTransport.clearRequests()
 
-            let _ = try await db.query()
+            _ = try await db.query()
                 .select("*")
                 .from("users")
                 .where(field: "status", op: op, value: value)

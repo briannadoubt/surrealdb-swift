@@ -1,5 +1,5 @@
-import Testing
 @testable import SurrealDB
+import Testing
 
 // MARK: - Test Helpers
 

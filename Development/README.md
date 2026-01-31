@@ -22,6 +22,44 @@ If you're contributing to SurrealDB Swift:
 1. Start with **[CLAUDE.md](../CLAUDE.md)** (root directory) for architecture overview and coding conventions
 2. Review **[Tests/README.md](../Tests/README.md)** for test requirements
 3. Check **INTEGRATION_TESTS.md** for integration test setup
+4. Set up development tools (see below)
+
+### Development Setup
+
+#### Install SwiftLint
+
+SwiftLint is required for code quality checks:
+
+```bash
+brew install swiftlint
+```
+
+#### Install Pre-Commit Hook
+
+To automatically run SwiftLint before each commit:
+
+```bash
+cp .githooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+The hook will:
+- Run SwiftLint on staged Swift files
+- Prevent commits if violations are found
+- Can be bypassed with `git commit --no-verify` (not recommended)
+
+#### Run SwiftLint Manually
+
+```bash
+# Check for violations
+swiftlint lint
+
+# Auto-fix violations (where possible)
+swiftlint lint --fix
+
+# Check with strict mode (warnings treated as errors)
+swiftlint lint --strict
+```
 
 ## Public Documentation
 

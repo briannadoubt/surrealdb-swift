@@ -7,7 +7,7 @@ final class MockTransport: Transport {
     var sentRequests: [JSONRPCRequest] = []
     var responseQueue: [String: JSONRPCResponse] = [:]
     var defaultResult: SurrealValue = .null
-    var _isConnected: Bool = false
+    var isConnectedInternal: Bool = false
     private let transportConfig: TransportConfig
 
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
@@ -27,11 +27,11 @@ final class MockTransport: Transport {
     }
 
     func connect() async throws {
-        _isConnected = true
+        isConnectedInternal = true
     }
 
     func disconnect() async throws {
-        _isConnected = false
+        isConnectedInternal = false
         sentRequests.removeAll()
         responseQueue.removeAll()
         notificationContinuation?.finish()
@@ -73,7 +73,7 @@ final class MockTransport: Transport {
     }
 
     var isConnected: Bool {
-        get async { _isConnected }
+        get async { isConnectedInternal }
     }
 
     var notifications: AsyncStream<LiveQueryNotification> {

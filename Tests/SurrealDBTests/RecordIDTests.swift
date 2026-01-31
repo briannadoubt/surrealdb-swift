@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import SurrealDB
+import Testing
 
 @Suite("RecordID")
 struct RecordIDTests {
@@ -41,23 +41,23 @@ struct RecordIDTests {
 
     @Test("Invalid RecordID - missing colon")
     func invalidRecordIDMissingColon() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: "users")
-        }
+        })
     }
 
     @Test("Invalid RecordID - empty table")
     func invalidRecordIDEmptyTable() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: ":john")
-        }
+        })
     }
 
     @Test("Invalid RecordID - empty ID")
     func invalidRecordIDEmptyID() {
-        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }) {
+        expectSurrealError({ if case .invalidRecordID = $0 { return true } else { return false } }, when: {
             try RecordID(parsing: "users:")
-        }
+        })
     }
 
     @Test("RecordID is Codable")
