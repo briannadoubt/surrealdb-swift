@@ -7,9 +7,9 @@ import Testing
 /// To run these tests:
 /// 1. Start SurrealDB: `surreal start --user root --pass root memory`
 /// 2. Run tests: `SURREALDB_TEST=1 swift test`
-@Suite("Integration Tests")
+@Suite("Integration Tests", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
 struct IntegrationTests {
-    @Test("Connection test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Connection test")
     func testConnection() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -22,7 +22,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Ping test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Ping test")
     func testPing() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -34,7 +34,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Version test", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Version test")
     func testVersion() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -48,7 +48,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("CRUD operations", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("CRUD operations")
     func testCRUDOperations() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -87,7 +87,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Query with variables", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Query with variables")
     func testQuery() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -125,7 +125,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Live queries", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Live queries")
     func testLiveQueries() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -198,7 +198,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Query builder", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Query builder")
     func testQueryBuilder() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()
@@ -238,7 +238,7 @@ struct IntegrationTests {
         try await db.disconnect()
     }
 
-    @Test("Relationships", .enabled(if: ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1"))
+    @Test("Relationships")
     func testRelationships() async throws {
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")
         try await db.connect()

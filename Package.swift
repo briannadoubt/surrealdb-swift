@@ -17,11 +17,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0")
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),
+        .package(url: "https://github.com/vapor/websocket-kit.git", from: "2.0.0")
     ],
     targets: [
         .target(
-            name: "SurrealDB"
+            name: "SurrealDB",
+            dependencies: [
+                .product(name: "WebSocketKit", package: "websocket-kit")
+            ]
         ),
         .testTarget(
             name: "SurrealDBTests",

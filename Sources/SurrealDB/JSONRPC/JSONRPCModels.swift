@@ -24,8 +24,8 @@ public struct JSONRPCRequest: Sendable, Codable {
 
 /// A JSON-RPC 2.0 response.
 public struct JSONRPCResponse: Sendable, Codable {
-    /// The JSON-RPC protocol version.
-    public let jsonrpc: String
+    /// The JSON-RPC protocol version (optional as some servers may omit it).
+    public let jsonrpc: String?
 
     /// The request ID this response corresponds to (nil for notifications).
     public let id: String?

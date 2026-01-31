@@ -1,18 +1,21 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
+import NIOCore
+import NIOPosix
+import WebSocketKit
 
-/// WebSocket-based transport for SurrealDB.
+/// WebSocket-based transport for SurrealDB using WebSocketKit.
 ///
 /// This transport maintains a persistent connection and supports live queries.
 /// Supports automatic reconnection with configurable policies.
+/// Uses the same pattern as Trebuchet for reliable cross-platform WebSocket support.
 @SurrealActor
 public final class WebSocketTransport: Transport, Sendable {
     private let url: URL
     private let transportConfig: TransportConfig
-    private var webSocketTask: URLSessionWebSocketTask?
-    private var session: URLSession
+
+    // SwiftNIO components
+    private let eventLoopGroup: EventLoopGroup
+    private var webSocket: WebSocket?
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -24,7 +27,6 @@ public final class WebSocketTransport: Transport, Sendable {
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
     private let notificationStream: AsyncStream<LiveQueryNotification>
 
-    private var receiveTask: Task<Void, Never>?
     private var reconnectionTask: Task<Void, Never>?
     private var _isConnected: Bool = false
     private var reconnectionAttempts: Int = 0
@@ -42,7 +44,9 @@ public final class WebSocketTransport: Transport, Sendable {
         }
         self.url = components.url!
         self.transportConfig = config
-        self.session = URLSession(configuration: .default)
+
+        // Create event loop group for WebSocketKit
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 
         // Create the notification stream with a separate continuation
         var cont: AsyncStream<LiveQueryNotification>.Continuation?
@@ -52,12 +56,18 @@ public final class WebSocketTransport: Transport, Sendable {
         self.notificationContinuation = cont
     }
 
+    deinit {
+        // Note: We don't shutdown the EventLoopGroup here as it may be accessed
+        // from callbacks after deinit. The OS will clean up the resources.
+        // For proper cleanup, users should call disconnect() before releasing the transport.
+    }
+
     public var config: TransportConfig {
         get async { transportConfig }
     }
 
     public func connect() async throws(SurrealError) {
-        guard webSocketTask == nil else {
+        guard !_isConnected else {
             return // Already connected
         }
 
@@ -65,127 +75,61 @@ public final class WebSocketTransport: Transport, Sendable {
         shouldReconnect = true
         reconnectionAttempts = 0
 
-        // Create and start WebSocket connection
-        webSocketTask = session.webSocketTask(with: url)
-        webSocketTask?.resume()
-        _isConnected = true
+        // Build WebSocket URL
+        let scheme = (url.scheme == "wss" || url.scheme == "https") ? "wss" : "ws"
+        let host = url.host ?? "localhost"
+        let port = url.port ?? (scheme == "wss" ? 443 : 80)
+        let path = url.path
+        let wsURL = "\(scheme)://\(host):\(port)\(path)"
 
-        // Start receiving messages
-        receiveTask = Task { @SurrealActor in
-            await self.receiveMessages()
-        }
-    }
+        // Create promise to capture WebSocket instance (Trebuchet pattern)
+        let promise = eventLoopGroup.next().makePromise(of: WebSocket.self)
 
-    public func disconnect() async throws(SurrealError) {
-        _isConnected = false
-        shouldReconnect = false
+        // Connect using WebSocketKit (same pattern as Trebuchet)
+        WebSocket.connect(to: wsURL, on: eventLoopGroup) { [weak self] ws in
+            guard let self = self else {
+                promise.fail(SurrealError.connectionError("Transport was deallocated"))
+                return
+            }
 
-        // Cancel reconnection task
-        reconnectionTask?.cancel()
-        reconnectionTask = nil
-
-        // Cancel receive task
-        receiveTask?.cancel()
-        receiveTask = nil
-
-        // Close WebSocket
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-
-        // Fail all pending requests
-        for (_, continuation) in pendingRequests {
-            continuation.resume(throwing: SurrealError.transportClosed)
-        }
-        pendingRequests.removeAll()
-
-        // Close notification stream
-        notificationContinuation?.finish()
-    }
-
-    public func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
-        guard let task = webSocketTask, _isConnected else {
-            throw SurrealError.notConnected
-        }
-
-        // Encode and send the request
-        let data: Data
-        do {
-            data = try encoder.encode(request)
-        } catch {
-            throw SurrealError.encodingError("Failed to encode request: \(error)")
-        }
-
-        let message = URLSessionWebSocketTask.Message.data(data)
-
-        // Send and wait for response
-        // Note: Timeout is handled by URLSession configuration
-        do {
-            return try await withCheckedThrowingContinuation { continuation in
-                pendingRequests[request.id] = continuation
-
+            // Set up message handlers INSIDE the connect callback (key to avoiding NIOLoopBound issues)
+            ws.onBinary { [weak self] _, buffer in
+                guard let self = self else { return }
+                let data = Data(buffer: buffer)
                 Task {
-                    do {
-                        try await task.send(message)
-                    } catch {
-                        // Remove from pending and fail
-                        if pendingRequests.removeValue(forKey: request.id) != nil {
-                            continuation.resume(throwing: SurrealError.connectionError("Send failed: \(error)"))
-                        }
-                    }
+                    await self.handleMessage(data: data)
                 }
             }
-        } catch let error as SurrealError {
-            throw error
-        } catch {
-            throw SurrealError.connectionError("Unexpected error: \(error)")
+
+            ws.onText { [weak self] _, text in
+                guard let self = self else { return }
+                guard let data = text.data(using: .utf8) else { return }
+                Task {
+                    await self.handleMessage(data: data)
+                }
+            }
+
+            ws.onClose.whenComplete { [weak self] _ in
+                guard let self = self else { return }
+                Task {
+                    await self.handleDisconnection()
+                }
+            }
+
+            // Connection successful
+            promise.succeed(ws)
         }
-    }
+        .whenFailure { error in
+            promise.fail(error)
+        }
 
-    public var isConnected: Bool {
-        get async { _isConnected }
-    }
-
-    public var notifications: AsyncStream<LiveQueryNotification> {
-        get async { notificationStream }
-    }
-
-    // MARK: - Private
-
-    private func receiveMessages() async {
-        while let task = webSocketTask, _isConnected {
-            do {
-                let message = try await task.receive()
-
-                switch message {
-                case .data(let data):
-                    await handleMessage(data: data)
-
-                case .string(let text):
-                    guard let data = text.data(using: .utf8) else {
-                        continue
-                    }
-                    await handleMessage(data: data)
-
-                @unknown default:
-                    break
-                }
-            } catch {
-                // Connection closed or error
-                _isConnected = false
-
-                // Fail all pending requests
-                for (_, continuation) in pendingRequests {
-                    continuation.resume(throwing: SurrealError.transportClosed)
-                }
-                pendingRequests.removeAll()
-
-                // Attempt reconnection if enabled
-                if shouldReconnect {
-                    await attemptReconnection()
-                }
-
-                break
-            }
+        // Wait for connection to complete
+        do {
+            let ws = try await promise.futureResult.get()
+            self.webSocket = ws
+            self._isConnected = true
+        } catch {
+            throw SurrealError.connectionError("Failed to connect: \(error)")
         }
     }
 
@@ -205,6 +149,92 @@ public final class WebSocketTransport: Transport, Sendable {
         }
 
         // Unknown message format - ignore
+    }
+
+    private func handleDisconnection() async {
+        guard _isConnected else { return }
+
+        _isConnected = false
+
+        // Fail all pending requests
+        for (_, continuation) in pendingRequests {
+            continuation.resume(throwing: SurrealError.transportClosed)
+        }
+        pendingRequests.removeAll()
+
+        // Attempt reconnection if enabled
+        if shouldReconnect {
+            await attemptReconnection()
+        }
+    }
+
+    public func disconnect() async throws(SurrealError) {
+        _isConnected = false
+        shouldReconnect = false
+
+        // Cancel reconnection task
+        reconnectionTask?.cancel()
+        reconnectionTask = nil
+
+        // Close WebSocket
+        if let ws = webSocket {
+            try? await ws.close()
+        }
+
+        webSocket = nil
+
+        // Fail all pending requests
+        for (_, continuation) in pendingRequests {
+            continuation.resume(throwing: SurrealError.transportClosed)
+        }
+        pendingRequests.removeAll()
+
+        // Close notification stream
+        notificationContinuation?.finish()
+    }
+
+    public func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
+        guard let ws = webSocket, _isConnected else {
+            throw SurrealError.notConnected
+        }
+
+        // Encode request to JSON
+        let data: Data
+        do {
+            data = try encoder.encode(request)
+        } catch {
+            throw SurrealError.encodingError("Failed to encode request: \(error)")
+        }
+
+        // Convert Data to ByteBuffer
+        var buffer = ByteBufferAllocator().buffer(capacity: data.count)
+        buffer.writeBytes(data)
+
+        // Send using WebSocketKit's send method (Trebuchet pattern)
+        do {
+            try await ws.send(raw: buffer.readableBytesView, opcode: .binary)
+        } catch {
+            throw SurrealError.connectionError("Send failed: \(error)")
+        }
+
+        // Wait for response using continuation
+        do {
+            return try await withCheckedThrowingContinuation { continuation in
+                pendingRequests[request.id] = continuation
+            }
+        } catch let error as SurrealError {
+            throw error
+        } catch {
+            throw SurrealError.connectionError("Unexpected error: \(error)")
+        }
+    }
+
+    public var isConnected: Bool {
+        get async { _isConnected }
+    }
+
+    public var notifications: AsyncStream<LiveQueryNotification> {
+        get async { notificationStream }
     }
 
     // MARK: - Reconnection
@@ -246,7 +276,7 @@ public final class WebSocketTransport: Transport, Sendable {
                 guard shouldReconnect else { return }
 
                 // Reset state
-                webSocketTask = nil
+                webSocket = nil
                 try await connect()
 
                 // Success - reset attempts
@@ -281,7 +311,7 @@ public final class WebSocketTransport: Transport, Sendable {
                 guard shouldReconnect else { return }
 
                 // Reset state
-                webSocketTask = nil
+                webSocket = nil
                 try await connect()
 
                 // Success - reset attempts
