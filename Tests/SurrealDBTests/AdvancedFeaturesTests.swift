@@ -78,7 +78,8 @@ struct AdvancedFeaturesTests {
         var thrownError: SurrealError?
         do {
             _ = try await db.subscribeLive("test-query-id")
-        } catch let error as SurrealError {
+        } catch {
+            // With typed throws, error is guaranteed to be SurrealError
             thrownError = error
         }
 

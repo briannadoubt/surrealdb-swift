@@ -13,7 +13,7 @@ extension SurrealDB {
         orderBy: [(keyPath: PartialKeyPath<T>, ascending: Bool)] = [],
         limit: Int? = nil,
         offset: Int? = nil
-    ) async throws -> [T] {
+    ) async throws(SurrealError) -> [T] {
         var queryParts: [String] = []
 
         // SELECT
@@ -61,23 +61,31 @@ extension SurrealDB {
         }
 
         if case .array(let array) = firstResult {
-            return try array.map { try $0.decode() }
+            var decoded: [T] = []
+            for item in array {
+                decoded.append(try item.safelyDecode())
+            }
+            return decoded
         } else if case .object(let obj) = firstResult, let result = obj["result"] {
             if case .array(let array) = result {
-                return try array.map { try $0.decode() }
+                var decoded: [T] = []
+                for item in array {
+                    decoded.append(try item.safelyDecode())
+                }
+                return decoded
             }
         }
 
-        return try [firstResult.decode()]
+        return try [firstResult.safelyDecode()]
     }
 
     /// Create a record for a model type
-    nonisolated public func create<T: SurrealModel>(_ model: T) async throws -> T {
+    nonisolated public func create<T: SurrealModel>(_ model: T) async throws(SurrealError) -> T {
         return try await create(T.tableName, data: model)
     }
 
     /// Update a model
-    nonisolated public func update<T: SurrealModel>(_ model: T) async throws -> T {
+    nonisolated public func update<T: SurrealModel>(_ model: T) async throws(SurrealError) -> T {
         guard let id = model.id else {
             throw SurrealError.invalidRecordID("Model must have an ID to update")
         }
@@ -85,7 +93,7 @@ extension SurrealDB {
     }
 
     /// Delete a model
-    nonisolated public func delete<T: SurrealModel>(_ model: T) async throws {
+    nonisolated public func delete<T: SurrealModel>(_ model: T) async throws(SurrealError) {
         guard let id = model.id else {
             throw SurrealError.invalidRecordID("Model must have an ID to delete")
         }
@@ -162,7 +170,7 @@ public struct TypeSafeQuery<T: SurrealModel> {
     }
 
     /// Execute the query
-    public func fetch() async throws -> [T] {
+    public func fetch() async throws(SurrealError) -> [T] {
         // Note: PartialKeyPath is not Sendable, but since we're only passing immutable
         // value types across the actor boundary and they don't escape, this is safe.
         // The values are immediately converted to strings within the actor method.
@@ -183,7 +191,7 @@ public struct TypeSafeQuery<T: SurrealModel> {
     }
 
     /// Fetch the first result
-    public func fetchOne() async throws -> T? {
+    public func fetchOne() async throws(SurrealError) -> T? {
         try await fetch().first
     }
 }

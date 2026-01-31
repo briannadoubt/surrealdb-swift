@@ -39,15 +39,15 @@ public final class HTTPTransport: Transport, Sendable {
         get async { transportConfig }
     }
 
-    public func connect() async throws {
+    public func connect() async throws(SurrealError) {
         // HTTP is stateless, nothing to do
     }
 
-    public func disconnect() async throws {
+    public func disconnect() async throws(SurrealError) {
         // HTTP is stateless, nothing to do
     }
 
-    public func send(_ request: JSONRPCRequest) async throws -> JSONRPCResponse {
+    public func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
         let endpoint = url.appendingPathComponent("rpc")
         var urlRequest = URLRequest(url: endpoint)
         urlRequest.httpMethod = "POST"

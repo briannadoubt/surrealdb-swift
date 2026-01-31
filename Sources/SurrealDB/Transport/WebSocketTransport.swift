@@ -18,7 +18,7 @@ public final class WebSocketTransport: Transport, Sendable {
     private let decoder = JSONDecoder()
 
     // Request tracking
-    private var pendingRequests: [String: CheckedContinuation<JSONRPCResponse, Error>] = [:]
+    private var pendingRequests: [String: CheckedContinuation<JSONRPCResponse, any Error>] = [:]
 
     // Live query notification stream
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
@@ -56,7 +56,7 @@ public final class WebSocketTransport: Transport, Sendable {
         get async { transportConfig }
     }
 
-    public func connect() async throws {
+    public func connect() async throws(SurrealError) {
         guard webSocketTask == nil else {
             return // Already connected
         }
@@ -76,7 +76,7 @@ public final class WebSocketTransport: Transport, Sendable {
         }
     }
 
-    public func disconnect() async throws {
+    public func disconnect() async throws(SurrealError) {
         _isConnected = false
         shouldReconnect = false
 
@@ -102,7 +102,7 @@ public final class WebSocketTransport: Transport, Sendable {
         notificationContinuation?.finish()
     }
 
-    public func send(_ request: JSONRPCRequest) async throws -> JSONRPCResponse {
+    public func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
         guard let task = webSocketTask, _isConnected else {
             throw SurrealError.notConnected
         }
@@ -119,19 +119,25 @@ public final class WebSocketTransport: Transport, Sendable {
 
         // Send and wait for response
         // Note: Timeout is handled by URLSession configuration
-        return try await withCheckedThrowingContinuation { continuation in
-            pendingRequests[request.id] = continuation
+        do {
+            return try await withCheckedThrowingContinuation { continuation in
+                pendingRequests[request.id] = continuation
 
-            Task {
-                do {
-                    try await task.send(message)
-                } catch {
-                    // Remove from pending and fail
-                    if pendingRequests.removeValue(forKey: request.id) != nil {
-                        continuation.resume(throwing: SurrealError.connectionError("Send failed: \(error)"))
+                Task {
+                    do {
+                        try await task.send(message)
+                    } catch {
+                        // Remove from pending and fail
+                        if pendingRequests.removeValue(forKey: request.id) != nil {
+                            continuation.resume(throwing: SurrealError.connectionError("Send failed: \(error)"))
+                        }
                     }
                 }
             }
+        } catch let error as SurrealError {
+            throw error
+        } catch {
+            throw SurrealError.connectionError("Unexpected error: \(error)")
         }
     }
 

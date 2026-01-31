@@ -39,8 +39,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter fields: Field names to select. Use "*" or pass no arguments to select all fields.
     /// - Returns: A new QueryBuilder with the SELECT clause added.
-    /// - Throws: `SurrealError.invalidQuery` if any field name is invalid.
-    public func select(_ fields: String...) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if any field name is invalid.
+    public func select(_ fields: String...) throws(SurrealError) -> QueryBuilder {
         for field in fields where field != "*" {
             try SurrealValidator.validateFieldName(field)
         }
@@ -52,8 +52,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter table: The table name.
     /// - Returns: A new QueryBuilder with the FROM clause added.
-    /// - Throws: `SurrealError.invalidQuery` if the table name is invalid.
-    public func from(_ table: String) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the table name is invalid.
+    public func from(_ table: String) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateTableName(table)
         return updated(query: query + " FROM \(table)")
     }
@@ -72,7 +72,7 @@ public struct QueryBuilder: Sendable {
     ///   - op: The comparison operator to use.
     ///   - value: The value to compare against. Automatically parameterized.
     /// - Returns: A new QueryBuilder with the WHERE clause added.
-    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the field name is invalid.
     ///
     /// - Note: Multiple calls to `where()` or `whereRaw()` will add additional WHERE clauses
     ///   to the query. For multiple conditions, use `whereRaw()` with logical operators (AND/OR).
@@ -85,7 +85,7 @@ public struct QueryBuilder: Sendable {
     ///     .where(field: "age", op: .greaterThanOrEqual, value: .int(18))
     ///     .fetch()
     /// ```
-    public func `where`(field: String, op: ComparisonOperator, value: SurrealValue) throws -> QueryBuilder {
+    public func `where`(field: String, op: ComparisonOperator, value: SurrealValue) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateFieldName(field)
         let binding = IDGenerator.generateBindingID()
         var newBindings = bindings
@@ -133,8 +133,8 @@ public struct QueryBuilder: Sendable {
     ///   - field: The field name to order by.
     ///   - ascending: Whether to order ascending (default: true) or descending.
     /// - Returns: A new QueryBuilder with the ORDER BY clause added.
-    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
-    public func orderBy(_ field: String, ascending: Bool = true) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the field name is invalid.
+    public func orderBy(_ field: String, ascending: Bool = true) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateFieldName(field)
         let direction = ascending ? "ASC" : "DESC"
         return updated(query: query + " ORDER BY \(field) \(direction)")
@@ -154,8 +154,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter fields: Field names to group by.
     /// - Returns: A new QueryBuilder with the GROUP BY clause added.
-    /// - Throws: `SurrealError.invalidQuery` if any field name is invalid.
-    public func groupBy(_ fields: String...) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if any field name is invalid.
+    public func groupBy(_ fields: String...) throws(SurrealError) -> QueryBuilder {
         for field in fields {
             try SurrealValidator.validateFieldName(field)
         }
@@ -169,8 +169,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter table: The table name.
     /// - Returns: A new QueryBuilder with the CREATE clause.
-    /// - Throws: `SurrealError.invalidQuery` if the table name is invalid.
-    public func create(_ table: String) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the table name is invalid.
+    public func create(_ table: String) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateTableName(table)
         return updated(query: "CREATE \(table)")
     }
@@ -179,9 +179,9 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter data: The data to set as content. Automatically parameterized.
     /// - Returns: A new QueryBuilder with the CONTENT clause.
-    /// - Throws: Encoding errors if the data cannot be encoded.
-    public func content<T: Encodable>(_ data: T) throws -> QueryBuilder {
-        let value = try SurrealValue(from: data)
+    /// - Throws: ``SurrealError/encodingError(_:)`` if the data cannot be encoded.
+    public func content<T: Encodable>(_ data: T) throws(SurrealError) -> QueryBuilder {
+        let value = try SurrealValue.encode(data)
         let binding = IDGenerator.generateBindingID()
         var newBindings = bindings
         newBindings[binding] = value
@@ -198,8 +198,8 @@ public struct QueryBuilder: Sendable {
     ///   - field: The field name to set.
     ///   - value: The value to set. Automatically parameterized.
     /// - Returns: A new QueryBuilder with the SET clause.
-    /// - Throws: `SurrealError.invalidQuery` if the field name is invalid.
-    public func set(_ field: String, to value: SurrealValue) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the field name is invalid.
+    public func set(_ field: String, to value: SurrealValue) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateFieldName(field)
         let binding = IDGenerator.generateBindingID()
         var newBindings = bindings
@@ -219,8 +219,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter target: The table name or record ID.
     /// - Returns: A new QueryBuilder with the UPDATE clause.
-    /// - Throws: `SurrealError.invalidQuery` if the target is invalid.
-    public func update(_ target: String) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the target is invalid.
+    public func update(_ target: String) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateTableName(target)
         return updated(query: "UPDATE \(target)")
     }
@@ -231,8 +231,8 @@ public struct QueryBuilder: Sendable {
     ///
     /// - Parameter target: The table name or record ID.
     /// - Returns: A new QueryBuilder with the DELETE clause.
-    /// - Throws: `SurrealError.invalidQuery` if the target is invalid.
-    public func delete(_ target: String) throws -> QueryBuilder {
+    /// - Throws: ``SurrealError/invalidQuery(_:)`` if the target is invalid.
+    public func delete(_ target: String) throws(SurrealError) -> QueryBuilder {
         try SurrealValidator.validateTableName(target)
         return updated(query: "DELETE FROM \(target)")
     }
@@ -247,12 +247,12 @@ public struct QueryBuilder: Sendable {
     // MARK: - Execute
 
     /// Executes the query and returns raw SurrealValue results.
-    public func execute() async throws -> [SurrealValue] {
+    public func execute() async throws(SurrealError) -> [SurrealValue] {
         try await client.query(query, variables: bindings.isEmpty ? nil : bindings)
     }
 
     /// Executes the query and decodes the results to the specified type.
-    public func fetch<T: Decodable>() async throws -> [T] {
+    public func fetch<T: Decodable>() async throws(SurrealError) -> [T] {
         let results = try await execute()
 
         // Results from the query method are wrapped in a result object
@@ -265,23 +265,31 @@ public struct QueryBuilder: Sendable {
         if case .object(let obj) = firstResult,
            let resultValue = obj["result"] {
             if case .array(let array) = resultValue {
-                return try array.map { try $0.decode() }
+                var decoded: [T] = []
+                for item in array {
+                    decoded.append(try item.safelyDecode())
+                }
+                return decoded
             } else {
                 // Single result
-                return [try resultValue.decode()]
+                return [try resultValue.safelyDecode()]
             }
         }
 
         // Fallback: try to decode directly
         if case .array(let array) = firstResult {
-            return try array.map { try $0.decode() }
+            var decoded: [T] = []
+            for item in array {
+                decoded.append(try item.safelyDecode())
+            }
+            return decoded
         } else {
-            return [try firstResult.decode()]
+            return [try firstResult.safelyDecode()]
         }
     }
 
     /// Executes the query and returns the first result, or nil if no results.
-    public func fetchOne<T: Decodable>() async throws -> T? {
+    public func fetchOne<T: Decodable>() async throws(SurrealError) -> T? {
         let results: [T] = try await fetch()
         return results.first
     }

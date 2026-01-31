@@ -82,16 +82,16 @@ public enum Credentials: Sendable {
     case recordAccess(RecordAccessAuth)
 
     /// Encodes the credentials to a SurrealValue for RPC calls.
-    func toSurrealValue() throws -> SurrealValue {
+    func toSurrealValue() throws(SurrealError) -> SurrealValue {
         switch self {
         case .root(let auth):
-            return try SurrealValue(from: auth)
+            return try SurrealValue.encode(auth)
         case .namespace(let auth):
-            return try SurrealValue(from: auth)
+            return try SurrealValue.encode(auth)
         case .database(let auth):
-            return try SurrealValue(from: auth)
+            return try SurrealValue.encode(auth)
         case .recordAccess(let auth):
-            return try SurrealValue(from: auth)
+            return try SurrealValue.encode(auth)
         }
     }
 }

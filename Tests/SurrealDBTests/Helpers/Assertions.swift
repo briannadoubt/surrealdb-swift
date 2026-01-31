@@ -30,14 +30,10 @@ func expectArraysEqual<T: Equatable & Hashable>(
 
 /// Assert that a SurrealError matches expected type
 func expectSurrealError(
-    _ error: Error,
+    _ error: SurrealError,
     matches expected: SurrealError,
     sourceLocation: SourceLocation = #_sourceLocation
 ) {
-    guard let surrealError = error as? SurrealError else {
-        Issue.record("Error is not a SurrealError: \(error)", sourceLocation: sourceLocation)
-        return
-    }
-
-    #expect(surrealError == expected, sourceLocation: sourceLocation)
+    // With typed throws, error is guaranteed to be SurrealError
+    #expect(error == expected, sourceLocation: sourceLocation)
 }
