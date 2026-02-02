@@ -258,7 +258,8 @@ public struct SurrealEdgeMacro: MemberMacro, ExtensionMacro {
         var fieldDescriptors: [String] = []
 
         for field in fields {
-            let fieldType = "TypeMapper.fieldType(from: \"\(field.typeString)\")"
+            // Call TypeMapper.fieldType during macro expansion and serialize the result to Swift code
+            let fieldTypeString = TypeMapper.fieldType(from: field.typeString)
             let isOptional = field.isOptional ? "true" : "false"
             let hasIndex = field.hasIndex ? "true" : "false"
 
@@ -270,7 +271,7 @@ public struct SurrealEdgeMacro: MemberMacro, ExtensionMacro {
             let descriptor = """
             FieldDescriptor(
                 name: "\(field.name)",
-                type: \(fieldType),
+                type: \(fieldTypeString),
                 isOptional: \(isOptional),
                 hasIndex: \(hasIndex),
                 indexType: \(indexTypeParam)
@@ -311,125 +312,6 @@ private struct EdgeFieldInfo {
     let isOptional: Bool
     let hasIndex: Bool
     let indexType: String?
-}
-
-// MARK: - Type Mapper (for use in macro)
-
-/// Type mapper utility for macro expansion
-private enum TypeMapper {
-    static func isOptional(_ type: String) -> Bool {
-        return type.hasSuffix("?") || type.hasPrefix("Optional<")
-    }
-
-    static func fieldType(from swiftType: String) -> String {
-        // Trim whitespace manually since Foundation is not available in macro context
-        let type = swiftType.trimmingWhitespace()
-
-        // Handle Optional<T> and T?
-        if isOptional(type) {
-            let innerType = unwrapOptional(type)
-            return ".option(\(fieldType(from: innerType)))"
-        }
-
-        // Handle Array<T> and [T]
-        if let elementType = extractArrayType(from: type) {
-            return ".array(\(fieldType(from: elementType)))"
-        }
-
-        // Handle Set<T>
-        if let elementType = extractSetType(from: type) {
-            return ".set(\(fieldType(from: elementType)))"
-        }
-
-        // Handle RecordID
-        if type.hasPrefix("RecordID") {
-            if let table = extractGenericParameter(from: type) {
-                return ".record(table: \"\(table.lowercased())\")"
-            }
-            return ".record(table: nil)"
-        }
-
-        // Handle Date and Foundation types
-        if type == "Date" || type == "Foundation.Date" {
-            return ".datetime"
-        }
-
-        if type == "UUID" || type == "Foundation.UUID" {
-            return ".uuid"
-        }
-
-        if type == "Data" || type == "Foundation.Data" {
-            return ".bytes"
-        }
-
-        // Handle Decimal types
-        if type == "Decimal" || type == "Foundation.Decimal" || type == "Double" {
-            return ".decimal"
-        }
-
-        // Handle primitive types
-        switch type {
-        case "String":
-            return ".string"
-        case "Int", "Int8", "Int16", "Int32", "Int64":
-            return ".int"
-        case "UInt", "UInt8", "UInt16", "UInt32", "UInt64":
-            return ".int"
-        case "Float", "CGFloat":
-            return ".float"
-        case "Bool":
-            return ".bool"
-        default:
-            break
-        }
-
-        // Custom types default to object
-        return ".object"
-    }
-
-    static func unwrapOptional(_ type: String) -> String {
-        if type.hasSuffix("?") {
-            return String(type.dropLast())
-        }
-        if type.hasPrefix("Optional<"), type.hasSuffix(">") {
-            let start = type.index(type.startIndex, offsetBy: 9)
-            let end = type.index(before: type.endIndex)
-            return String(type[start..<end])
-        }
-        return type
-    }
-
-    static func extractArrayType(from type: String) -> String? {
-        if type.hasPrefix("["), type.hasSuffix("]") {
-            let start = type.index(after: type.startIndex)
-            let end = type.index(before: type.endIndex)
-            return String(type[start..<end])
-        }
-        if type.hasPrefix("Array<"), type.hasSuffix(">") {
-            let start = type.index(type.startIndex, offsetBy: 6)
-            let end = type.index(before: type.endIndex)
-            return String(type[start..<end])
-        }
-        return nil
-    }
-
-    static func extractSetType(from type: String) -> String? {
-        if type.hasPrefix("Set<"), type.hasSuffix(">") {
-            let start = type.index(type.startIndex, offsetBy: 4)
-            let end = type.index(before: type.endIndex)
-            return String(type[start..<end])
-        }
-        return nil
-    }
-
-    static func extractGenericParameter(from type: String) -> String? {
-        guard let startIndex = type.firstIndex(of: "<"),
-              let endIndex = type.lastIndex(of: ">") else {
-            return nil
-        }
-        let start = type.index(after: startIndex)
-        return String(type[start..<endIndex])
-    }
 }
 
 // MARK: - Errors

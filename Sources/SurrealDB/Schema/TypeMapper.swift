@@ -64,7 +64,9 @@ public enum TypeMapper {
         guard type.hasPrefix("RecordID") else { return nil }
 
         if let table = extractGenericParameter(from: type) {
-            return .record(table: table.lowercased())
+            // Strip namespace prefix (e.g., MyApp.User -> User)
+            let tableName = table.split(separator: ".").last.map(String.init)?.lowercased() ?? table.lowercased()
+            return .record(table: tableName)
         }
         return .record(table: nil)
     }
@@ -83,7 +85,8 @@ public enum TypeMapper {
             return .bytes
         }
 
-        if type == "Decimal" || type == "Foundation.Decimal" || type == "Double" {
+        // Decimal types (precise)
+        if type == "Decimal" || type == "Foundation.Decimal" {
             return .decimal
         }
 
@@ -99,7 +102,7 @@ public enum TypeMapper {
             return .int
         case "UInt", "UInt8", "UInt16", "UInt32", "UInt64":
             return .int
-        case "Float", "CGFloat":
+        case "Float", "Double", "CGFloat":
             return .float
         case "Bool":
             return .bool
@@ -158,13 +161,27 @@ public enum TypeMapper {
 
     /// Extract the generic parameter from a type like RecordID<User>
     private static func extractGenericParameter(from type: String) -> String? {
-        guard let startIndex = type.firstIndex(of: "<"),
-              let endIndex = type.lastIndex(of: ">") else {
+        guard let start = type.firstIndex(of: "<") else {
             return nil
         }
 
-        let start = type.index(after: startIndex)
-        return String(type[start..<endIndex])
+        var depth = 0
+        var end = start
+
+        for char in type[start...] {
+            if char == "<" {
+                depth += 1
+            } else if char == ">" {
+                depth -= 1
+                if depth == 0 { break }
+            }
+            end = type.index(after: end)
+        }
+
+        guard depth == 0 else { return nil }
+
+        let startIndex = type.index(after: start)
+        return String(type[startIndex..<end])
     }
 
     /// Check if a type is optional

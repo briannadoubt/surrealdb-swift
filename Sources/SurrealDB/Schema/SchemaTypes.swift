@@ -83,7 +83,7 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
     case object
 
     /// Array of a specific type.
-    case array(of: FieldType)
+    case array(of: FieldType, maxLength: Int? = nil)
 
     /// Set of a specific type.
     case set(of: FieldType)
@@ -96,6 +96,18 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
 
     /// Optional type (allows null).
     case option(of: FieldType)
+
+    /// Range type for value intervals.
+    case range
+
+    /// Literal type for enum-like values.
+    case literal(values: [String])
+
+    /// Regular expression type.
+    case regex
+
+    /// Either type allowing multiple alternatives.
+    case either([FieldType])
 
     /// Generates the SurrealQL representation.
     public func toSurrealQL() -> String {
@@ -110,20 +122,50 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
 
     /// Return SQL for simple scalar types, or nil if not a scalar
     private func scalarTypeSQL() -> String? {
+        if let numericType = numericTypeSQL() {
+            return numericType
+        }
+        if let temporalType = temporalTypeSQL() {
+            return temporalType
+        }
+        if let otherType = otherScalarTypeSQL() {
+            return otherType
+        }
+        return nil
+    }
+
+    /// Return SQL for numeric scalar types
+    private func numericTypeSQL() -> String? {
         switch self {
-        case .any: return "any"
-        case .string: return "string"
         case .number: return "number"
         case .int: return "int"
         case .float: return "float"
         case .decimal: return "decimal"
-        case .bool: return "bool"
+        default: return nil
+        }
+    }
+
+    /// Return SQL for temporal scalar types
+    private func temporalTypeSQL() -> String? {
+        switch self {
         case .datetime: return "datetime"
         case .duration: return "duration"
+        default: return nil
+        }
+    }
+
+    /// Return SQL for other scalar types
+    private func otherScalarTypeSQL() -> String? {
+        switch self {
+        case .any: return "any"
+        case .string: return "string"
+        case .bool: return "bool"
         case .uuid: return "uuid"
         case .bytes: return "bytes"
         case .null: return "null"
         case .object: return "object"
+        case .range: return "range"
+        case .regex: return "regex"
         default: return nil
         }
     }
@@ -131,8 +173,8 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
     /// Return SQL for complex parameterized types
     private func complexTypeSQL() -> String {
         switch self {
-        case .array(let type):
-            return formatGenericType("array", type)
+        case .array(let type, let maxLength):
+            return formatArrayType(type, maxLength: maxLength)
         case .set(let type):
             return formatGenericType("set", type)
         case .record(let table):
@@ -141,6 +183,10 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
             return formatGeometryType(subtype)
         case .option(let type):
             return formatGenericType("option", type)
+        case .literal(let values):
+            return formatLiteralType(values)
+        case .either(let types):
+            return formatEitherType(types)
         default:
             // Should not reach here if scalarTypeSQL handled all scalars
             return "any"
@@ -150,6 +196,15 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
     /// Format a generic type like array<T>, set<T>, or option<T>
     private func formatGenericType(_ typeName: String, _ innerType: FieldType) -> String {
         "\(typeName)<\(innerType.toSurrealQL())>"
+    }
+
+    /// Format an array type with optional maxLength constraint
+    private func formatArrayType(_ innerType: FieldType, maxLength: Int?) -> String {
+        if let maxLength = maxLength {
+            return "array<\(innerType.toSurrealQL()), \(maxLength)>"
+        } else {
+            return "array<\(innerType.toSurrealQL())>"
+        }
     }
 
     /// Format a record type with optional table specifier
@@ -168,6 +223,16 @@ public indirect enum FieldType: Sendable, Equatable, Codable, Hashable {
         } else {
             return "geometry"
         }
+    }
+
+    /// Format a literal type with enum-like values
+    private func formatLiteralType(_ values: [String]) -> String {
+        values.map { "\"\($0)\"" }.joined(separator: " | ")
+    }
+
+    /// Format an either type with multiple alternatives
+    private func formatEitherType(_ types: [FieldType]) -> String {
+        types.map { $0.toSurrealQL() }.joined(separator: " | ")
     }
 }
 

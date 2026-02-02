@@ -10,6 +10,35 @@ public struct SurrealValidator: Sendable {
         try! NSRegularExpression(pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$")
     }()
 
+    /// Reserved keywords that cannot be used as unquoted identifiers.
+    /// These are SurrealDB SQL keywords that would cause parsing ambiguities.
+    private static let reservedKeywords: Set<String> = [
+        // Query commands
+        "select", "from", "where", "insert", "update", "delete", "create",
+        "relate", "define", "remove", "info", "begin", "commit", "cancel",
+        // Schema definition
+        "table", "field", "index", "type", "relation", "event", "function",
+        "namespace", "database", "scope", "token", "analyzer", "user",
+        // Data types
+        "string", "int", "float", "bool", "datetime", "duration", "decimal",
+        "number", "object", "array", "record", "geometry", "bytes", "uuid",
+        // Control flow
+        "if", "else", "then", "end", "for", "in", "let", "return", "throw",
+        // Logical operators
+        "and", "or", "not", "is", "contains", "containsall", "containsany",
+        "containsnone", "inside", "allinside", "anyinside", "noneinside",
+        "outside", "intersects",
+        // Literals
+        "true", "false", "null", "none", "void",
+        // Keywords
+        "as", "at", "by", "default", "value", "assert", "permissions",
+        "full", "readonly", "schemafull", "schemaless", "unique", "drop",
+        "on", "to", "set", "unset", "content", "merge", "patch", "diff",
+        "split", "group", "order", "limit", "start", "fetch", "timeout",
+        "parallel", "explain", "use", "live", "kill", "with", "noindex",
+        "only", "when", "optional", "flexible"
+    ]
+
     /// Validates a table name.
     public static func validateTableName(_ name: String) throws(SurrealError) {
         try validateIdentifier(name, context: "table name")
@@ -78,6 +107,14 @@ public struct SurrealValidator: Sendable {
             throw SurrealError.invalidQuery(
                 "Invalid \(context): '\(identifier)'. Must be alphanumeric with underscores, " +
                 "start with letter/underscore, or be backtick-quoted like `\(identifier)`."
+            )
+        }
+
+        // Check for reserved keywords (case-insensitive)
+        if reservedKeywords.contains(identifier.lowercased()) {
+            throw SurrealError.invalidQuery(
+                "'\(identifier)' is a reserved keyword and cannot be used as a \(context). " +
+                "Use backtick-quoted identifier like `\(identifier)` instead."
             )
         }
     }

@@ -30,6 +30,13 @@ struct SchemaTypesTests {
         #expect(FieldType.array(of: .bool).toSurrealQL() == "array<bool>")
     }
 
+    @Test("FieldType generates correct SurrealQL for arrays with maxLength")
+    func fieldTypeArraysWithMaxLength() {
+        #expect(FieldType.array(of: .string, maxLength: 10).toSurrealQL() == "array<string, 10>")
+        #expect(FieldType.array(of: .int, maxLength: 5).toSurrealQL() == "array<int, 5>")
+        #expect(FieldType.array(of: .array(of: .int, maxLength: 3), maxLength: 5).toSurrealQL() == "array<array<int, 3>, 5>")
+    }
+
     @Test("FieldType generates correct SurrealQL for sets")
     func fieldTypeSets() {
         #expect(FieldType.set(of: .string).toSurrealQL() == "set<string>")
@@ -67,6 +74,49 @@ struct SchemaTypesTests {
         #expect(FieldType.geometry(subtype: .point).toSurrealQL() == "geometry<point>")
         #expect(FieldType.geometry(subtype: .lineString).toSurrealQL() == "geometry<linestring>")
         #expect(FieldType.geometry(subtype: .polygon).toSurrealQL() == "geometry<polygon>")
+    }
+
+    @Test("FieldType generates correct SurrealQL for range type")
+    func fieldTypeRange() {
+        #expect(FieldType.range.toSurrealQL() == "range")
+    }
+
+    @Test("FieldType generates correct SurrealQL for regex type")
+    func fieldTypeRegex() {
+        #expect(FieldType.regex.toSurrealQL() == "regex")
+    }
+
+    @Test("FieldType generates correct SurrealQL for literal types")
+    func fieldTypeLiteral() {
+        let singleValue = FieldType.literal(values: ["active"])
+        #expect(singleValue.toSurrealQL() == "\"active\"")
+
+        let multipleValues = FieldType.literal(values: ["active", "inactive", "pending"])
+        #expect(multipleValues.toSurrealQL() == "\"active\" | \"inactive\" | \"pending\"")
+
+        let twoValues = FieldType.literal(values: ["yes", "no"])
+        #expect(twoValues.toSurrealQL() == "\"yes\" | \"no\"")
+    }
+
+    @Test("FieldType generates correct SurrealQL for either types")
+    func fieldTypeEither() {
+        let intOrString = FieldType.either([.int, .string])
+        #expect(intOrString.toSurrealQL() == "int | string")
+
+        let multipleTypes = FieldType.either([.int, .string, .bool])
+        #expect(multipleTypes.toSurrealQL() == "int | string | bool")
+
+        let complexEither = FieldType.either([.record(table: "users"), .uuid])
+        #expect(complexEither.toSurrealQL() == "record<users> | uuid")
+    }
+
+    @Test("FieldType generates correct SurrealQL for nested either types")
+    func fieldTypeNestedEither() {
+        let arrayOrSet = FieldType.either([.array(of: .string), .set(of: .string)])
+        #expect(arrayOrSet.toSurrealQL() == "array<string> | set<string>")
+
+        let optionalIntOrString = FieldType.option(of: .either([.int, .string]))
+        #expect(optionalIntOrString.toSurrealQL() == "option<int | string>")
     }
 
     // MARK: - SchemaMode Tests

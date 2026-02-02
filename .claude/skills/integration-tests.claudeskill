@@ -1,0 +1,11 @@
+{
+  "name": "integration-tests",
+  "description": "Run SurrealDB integration tests with automatic database setup",
+  "command": "./.claude/skills/integration-tests.sh",
+  "cwd": "/Users/bri/dev/surrealdb-swift",
+  "examples": [
+    "/integration-tests"
+  ],
+  "tags": ["testing", "integration", "surrealdb"],
+  "timeout": 300000
+}

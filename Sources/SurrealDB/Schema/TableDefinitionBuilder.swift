@@ -176,6 +176,11 @@ public struct TableDefinitionBuilder: Sendable {
     ///
     /// - Returns: A new builder configured to drop the table.
     ///
+    /// ## Note
+    ///
+    /// This method exists for API consistency with the builder pattern, but you can also
+    /// use `SchemaBuilder.removeTable(_:)` directly for a more straightforward approach.
+    ///
     /// ## Example
     ///
     /// ```swift
@@ -232,8 +237,11 @@ public struct TableDefinitionBuilder: Sendable {
             }
 
             // Add table type
-            if let type = tableType, !type.toSurrealQL().isEmpty {
-                parts.append(type.toSurrealQL())
+            if let type = tableType {
+                let sql = type.toSurrealQL()
+                if !sql.isEmpty {
+                    parts.append(sql)
+                }
             }
 
             return parts.joined(separator: " ")

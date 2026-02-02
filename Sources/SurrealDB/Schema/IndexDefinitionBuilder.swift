@@ -129,6 +129,10 @@ public struct IndexDefinitionBuilder: Sendable {
 
     /// Creates a full-text search index with BM25 ranking.
     ///
+    /// - Warning: The analyzer name is interpolated directly into SQL. Never use untrusted
+    ///   user input as analyzer names as this could lead to SQL injection vulnerabilities.
+    ///   Only use hardcoded analyzer names or thoroughly validated input.
+    ///
     /// - Parameter analyzer: Optional analyzer name (defaults to "LIKE").
     /// - Returns: A new builder with full-text search type set.
     ///
@@ -153,6 +157,10 @@ public struct IndexDefinitionBuilder: Sendable {
     }
 
     /// Creates a search index for advanced text search.
+    ///
+    /// - Warning: The analyzer name is interpolated directly into SQL. Never use untrusted
+    ///   user input as analyzer names as this could lead to SQL injection vulnerabilities.
+    ///   Only use hardcoded analyzer names or thoroughly validated input.
     ///
     /// - Parameter analyzer: Optional analyzer name (defaults to "LIKE").
     /// - Returns: A new builder with search index type set.

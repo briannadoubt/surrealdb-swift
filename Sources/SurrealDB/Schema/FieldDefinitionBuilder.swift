@@ -93,7 +93,11 @@ public struct FieldDefinitionBuilder: Sendable {
 
     /// Sets a default value for the field.
     ///
-    /// - Parameter value: The default value expression.
+    /// - Warning: The expression is interpolated directly into SQL. Never use untrusted
+    ///   user input in default expressions as this could lead to SQL injection vulnerabilities.
+    ///   Only use hardcoded expressions or thoroughly validated input.
+    ///
+    /// - Parameter value: A SurrealQL expression (e.g., `"time::now()"`, `"[]"`, `"0"`)
     /// - Returns: A new builder with the default value set.
     ///
     /// ## Example
@@ -121,7 +125,11 @@ public struct FieldDefinitionBuilder: Sendable {
 
     /// Sets a value expression for the field (computed field).
     ///
-    /// - Parameter expression: The value expression.
+    /// - Warning: The expression is interpolated directly into SQL. Never use untrusted
+    ///   user input in value expressions as this could lead to SQL injection vulnerabilities.
+    ///   Only use hardcoded expressions or thoroughly validated input.
+    ///
+    /// - Parameter expression: A SurrealQL expression for computing the field value
     /// - Returns: A new builder with the value expression set.
     ///
     /// ## Example
@@ -149,7 +157,11 @@ public struct FieldDefinitionBuilder: Sendable {
 
     /// Sets an assertion (validation rule) for the field.
     ///
-    /// - Parameter expression: The assertion expression.
+    /// - Warning: The expression is interpolated directly into SQL. Never use untrusted
+    ///   user input in assertion expressions as this could lead to SQL injection vulnerabilities.
+    ///   Only use hardcoded expressions or thoroughly validated input.
+    ///
+    /// - Parameter expression: A SurrealQL boolean expression for field validation
     /// - Returns: A new builder with the assertion set.
     ///
     /// ## Example

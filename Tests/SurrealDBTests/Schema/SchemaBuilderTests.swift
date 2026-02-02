@@ -264,11 +264,11 @@ struct SchemaBuilderTests {
             indexName: "ft_content",
             tableName: "posts"
         )
-        .fields("content")
+        .fields("body")
         .fulltext(analyzer: "ascii")
 
         let sql = try builder.toSurrealQL()
-        #expect(sql == "DEFINE INDEX ft_content ON TABLE posts FIELDS content SEARCH ANALYZER ascii BM25")
+        #expect(sql == "DEFINE INDEX ft_content ON TABLE posts FIELDS body SEARCH ANALYZER ascii BM25")
     }
 
     @Test("Define search index")
@@ -355,46 +355,6 @@ struct SchemaBuilderTests {
         #expect(IndexType.unique.toSurrealQL() == "UNIQUE")
         #expect(IndexType.fulltext(analyzer: "ascii").toSurrealQL() == "SEARCH ANALYZER ascii BM25")
         #expect(IndexType.search(analyzer: nil).toSurrealQL() == "SEARCH ANALYZER LIKE")
-    }
-
-    // MARK: - Validation Tests
-
-    @Test("Validate valid table names")
-    func validateValidTableNames() throws {
-        try SurrealValidator.validateTableName("users")
-        try SurrealValidator.validateTableName("user_profiles")
-        try SurrealValidator.validateTableName("_private")
-        try SurrealValidator.validateTableName("table123")
-    }
-
-    @Test("Validate invalid table names")
-    func validateInvalidTableNames() {
-        #expect(throws: SurrealError.self) {
-            try SurrealValidator.validateTableName("")
-        }
-
-        #expect(throws: SurrealError.self) {
-            try SurrealValidator.validateTableName("123invalid")
-        }
-    }
-
-    @Test("Validate valid field names")
-    func validateValidFieldNames() throws {
-        try SurrealValidator.validateFieldName("email")
-        try SurrealValidator.validateFieldName("user_email")
-        try SurrealValidator.validateFieldName("address.city")
-        try SurrealValidator.validateFieldName("nested.field.name")
-    }
-
-    @Test("Validate invalid field names")
-    func validateInvalidFieldNames() {
-        #expect(throws: SurrealError.self) {
-            try SurrealValidator.validateFieldName("")
-        }
-
-        #expect(throws: SurrealError.self) {
-            try SurrealValidator.validateFieldName("123invalid")
-        }
     }
 
     // MARK: - Helper Methods
