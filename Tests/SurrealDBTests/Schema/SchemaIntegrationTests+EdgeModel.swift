@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Generate schema for edge model")
     func testEdgeModelSchemaGeneration() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // First create the user table
@@ -47,7 +47,7 @@ extension SchemaIntegrationTests {
 
     @Test("Execute edge schema creation")
     func testExecuteEdgeSchemaCreation() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create user table first

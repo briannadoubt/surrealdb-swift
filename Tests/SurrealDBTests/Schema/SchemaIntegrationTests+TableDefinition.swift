@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Generate schema from SurrealModel")
     func testAutomaticSchemaGeneration() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Generate schema statements without executing
@@ -38,7 +38,7 @@ extension SchemaIntegrationTests {
 
     @Test("Execute schema generation for SurrealModel")
     func testExecuteSchemaGeneration() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Execute schema generation
@@ -62,7 +62,7 @@ extension SchemaIntegrationTests {
 
     @Test("Define table with manual field definitions")
     func testManualTableDefinition() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table with explicit fields
@@ -103,7 +103,7 @@ extension SchemaIntegrationTests {
 
     @Test("Define table using schema builder")
     func testSchemaBuilderTableDefinition() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table using fluent API

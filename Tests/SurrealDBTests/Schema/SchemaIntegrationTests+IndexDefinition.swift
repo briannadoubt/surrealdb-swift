@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Create unique index")
     func testCreateUniqueIndex() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table and unique index
@@ -56,7 +56,7 @@ extension SchemaIntegrationTests {
 
     @Test("Create full-text search index")
     func testCreateFulltextIndex() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table with fulltext index
@@ -86,7 +86,7 @@ extension SchemaIntegrationTests {
 
     @Test("Create standard search index")
     func testCreateSearchIndex() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table with search index
@@ -116,7 +116,7 @@ extension SchemaIntegrationTests {
 
     @Test("Create multi-field index")
     func testCreateMultiFieldIndex() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table with multi-field index

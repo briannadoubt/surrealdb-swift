@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Drop and recreate table")
     func testDropAndRecreateTable() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create initial table
@@ -49,7 +49,7 @@ extension SchemaIntegrationTests {
 
     @Test("Remove table using schema builder")
     func testRemoveTable() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create a table
@@ -74,7 +74,7 @@ extension SchemaIntegrationTests {
 
     @Test("Schemaless table accepts any fields")
     func testSchemalessTable() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create schemaless table
@@ -108,7 +108,7 @@ extension SchemaIntegrationTests {
 
     @Test("Schemafull table rejects undefined fields")
     func testSchemafullTableRejectsUndefinedFields() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create schemafull table with specific fields

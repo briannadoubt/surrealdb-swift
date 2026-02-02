@@ -36,10 +36,9 @@ struct SchemaIntegrationTests {
 
     // MARK: - Helper Methods
 
-    func setupDatabase() async throws -> SurrealDB {
+    func setupDatabase() async throws -> SurrealDB? {
         guard ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1" else {
-            Issue.record("Skipping test - SURREALDB_TEST environment variable not set")
-            throw CancellationError()
+            return nil // Skip test when environment variable not set
         }
 
         let db = try SurrealDB(url: "ws://localhost:8000/rpc")

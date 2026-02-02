@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Define fields with various types")
     func testFieldDefinitionsWithTypes() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table
@@ -70,7 +70,7 @@ extension SchemaIntegrationTests {
 
     @Test("Define field with default value")
     func testFieldWithDefaultValue() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table and field with default
@@ -110,7 +110,7 @@ extension SchemaIntegrationTests {
 
     @Test("Define field with assertion")
     func testFieldWithAssertion() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Define table with field assertion

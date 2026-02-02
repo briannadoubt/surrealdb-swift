@@ -8,7 +8,7 @@ extension SchemaIntegrationTests {
 
     @Test("Describe table schema")
     func testDescribeTable() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create a table
@@ -41,7 +41,7 @@ extension SchemaIntegrationTests {
 
     @Test("List all tables")
     func testListTables() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create several tables
@@ -74,7 +74,7 @@ extension SchemaIntegrationTests {
 
     @Test("Get database info")
     func testGetDatabaseInfo() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Create a table
@@ -104,7 +104,7 @@ extension SchemaIntegrationTests {
 
     @Test("Dry run table definition")
     func testDryRunTableDefinition() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Generate statements without execution
@@ -128,7 +128,7 @@ extension SchemaIntegrationTests {
 
     @Test("Dry run edge definition")
     func testDryRunEdgeDefinition() async throws {
-        let db = try await setupDatabase()
+        guard let db = try await setupDatabase() else { return }
         defer { Task { try? await db.disconnect() } }
 
         // Generate edge statements without execution

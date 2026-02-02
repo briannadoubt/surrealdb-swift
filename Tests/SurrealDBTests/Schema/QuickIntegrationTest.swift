@@ -8,8 +8,7 @@ struct QuickIntegrationTest {
     @Test("Test basic connection")
     func testBasicConnection() async throws {
         guard ProcessInfo.processInfo.environment["SURREALDB_TEST"] == "1" else {
-            Issue.record("Skipping - SURREALDB_TEST not set")
-            throw CancellationError()
+            return // Skip test when environment variable not set
         }
 
         print("🔵 Starting connection test...")
