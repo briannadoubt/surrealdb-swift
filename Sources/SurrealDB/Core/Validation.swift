@@ -19,10 +19,37 @@ public struct SurrealValidator: Sendable {
     public static func validateFieldName(_ name: String) throws(SurrealError) {
         if name == "*" { return } // Special case for SELECT *
 
+        guard !name.isEmpty else {
+            throw SurrealError.invalidQuery("Empty field name")
+        }
+
         // Check each component separated by dots
         let components = name.split(separator: ".")
+        guard !components.isEmpty else {
+            throw SurrealError.invalidQuery("Invalid field name")
+        }
+
         for component in components {
             try validateIdentifier(String(component), context: "field name")
+        }
+    }
+
+    /// Validates an index name.
+    public static func validateIndexName(_ name: String) throws(SurrealError) {
+        try validateIdentifier(name, context: "index name")
+    }
+
+    /// Validates a list of field names for an index.
+    ///
+    /// - Parameter fields: The field names to validate.
+    /// - Throws: `SurrealError.validationError` if any field name is invalid or the list is empty.
+    public static func validateIndexFields(_ fields: [String]) throws(SurrealError) {
+        guard !fields.isEmpty else {
+            throw SurrealError.validationError("Index must have at least one field")
+        }
+
+        for field in fields {
+            try validateFieldName(field)
         }
     }
 
