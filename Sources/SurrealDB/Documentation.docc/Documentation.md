@@ -8,6 +8,7 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 
 - **WebSocket and HTTP transports** - Choose the right transport for your use case
 - **Type-safe operations** - Leverage Swift's Codable for automatic encoding/decoding
+- **Schema management** - Define and manage schemas with Swift macros and fluent builders
 - **Real-time live queries** - Subscribe to database changes in real-time
 - **Fluent query builder** - Build SurrealQL queries with a type-safe API
 - **Full SurrealQL support** - Execute any SurrealQL query directly
@@ -54,6 +55,18 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 
 - <doc:QueryBuilder>
 - ``QueryBuilder``
+
+### Schema Management
+
+- <doc:SchemaManagement>
+- <doc:SchemaMacros>
+- <doc:SchemaBuilders>
+- <doc:SchemaTypes>
+- <doc:SchemaIntrospection>
+- ``SchemaBuilder``
+- ``TableDefinitionBuilder``
+- ``FieldDefinitionBuilder``
+- ``IndexDefinitionBuilder``
 
 ### Advanced Features
 

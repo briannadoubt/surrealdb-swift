@@ -32,6 +32,24 @@ public enum SurrealError: Error, Sendable, Equatable {
 
     /// Invalid query syntax or identifier.
     case invalidQuery(String)
+
+    /// Invalid schema definition or structure.
+    case invalidSchema(String)
+
+    /// Failed to map a Swift type to a SurrealDB type.
+    case typeMappingError(String)
+
+    /// Error computing schema differences.
+    case schemaDiffError(String)
+
+    /// Schema migration failed.
+    case migrationError(String)
+
+    /// Schema version mismatch or error.
+    case schemaVersionError(String)
+
+    /// Schema validation failed.
+    case validationError(String)
 }
 
 extension SurrealError: CustomStringConvertible {
@@ -63,6 +81,18 @@ extension SurrealError: CustomStringConvertible {
             return "Unsupported operation: \(message)"
         case .invalidQuery(let message):
             return "Invalid query: \(message)"
+        case .invalidSchema(let message):
+            return "Invalid schema: \(message)"
+        case .typeMappingError(let message):
+            return "Type mapping error: \(message)"
+        case .schemaDiffError(let message):
+            return "Schema diff error: \(message)"
+        case .migrationError(let message):
+            return "Migration error: \(message)"
+        case .schemaVersionError(let message):
+            return "Schema version error: \(message)"
+        case .validationError(let message):
+            return "Validation error: \(message)"
         }
     }
 }

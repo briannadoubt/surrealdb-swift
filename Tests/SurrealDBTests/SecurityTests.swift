@@ -39,9 +39,9 @@ struct SecurityValidationTests {
         try SurrealValidator.validateFieldName("*")
 
         // Valid nested fields
-        try SurrealValidator.validateFieldName("user.name")
-        try SurrealValidator.validateFieldName("user.profile.email")
-        try SurrealValidator.validateFieldName("posts.author.name")
+        try SurrealValidator.validateFieldName("person.name")
+        try SurrealValidator.validateFieldName("person.profile.email")
+        try SurrealValidator.validateFieldName("posts.author.fullname")
 
         // Invalid field names
         expectSurrealError({ if case .invalidQuery = $0 { return true } else { return false } } as (SurrealError) -> Bool, when: {

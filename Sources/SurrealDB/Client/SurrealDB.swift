@@ -58,6 +58,23 @@ public actor SurrealDB {
         case http
     }
 
+    // MARK: - Schema Management
+
+    /// Provides access to schema management operations.
+    ///
+    /// Use this property to define tables, fields, and indexes using a fluent API.
+    ///
+    /// Example:
+    /// ```swift
+    /// try await db.schema
+    ///     .defineTable("users")
+    ///     .schemafull()
+    ///     .execute()
+    /// ```
+    public var schema: SchemaBuilder {
+        SchemaBuilder(client: self)
+    }
+
     // MARK: - Connection Management
 
     /// Connects to the SurrealDB server.
