@@ -83,14 +83,17 @@ extension SurrealDB {
     /// - Returns: Array of generated SurrealQL statements.
     /// - Throws: ``SurrealError`` if schema generation or execution fails.
     public func defineTable(
-        tableName: String,
+        tableName: StaticString,
         fields: [SchemaGenerator.FieldDefinition],
         mode: SchemaMode = .schemafull,
         drop: Bool = false,
         execute: Bool = true
     ) async throws(SurrealError) -> [String] {
+        // Convert StaticString to String
+        let tableNameStr = String(describing: tableName)
+
         // Validate table name
-        try SurrealValidator.validateTableName(tableName)
+        try SurrealValidator.validateTableName(tableNameStr)
 
         // Validate field names
         for field in fields {
@@ -99,7 +102,7 @@ extension SurrealDB {
 
         // Generate schema statements
         let statements = SchemaGenerator.generateSchema(
-            tableName: tableName,
+            tableName: tableNameStr,
             fields: fields,
             mode: mode,
             drop: drop
@@ -194,30 +197,35 @@ extension SurrealDB {
     /// - Returns: Array of generated SurrealQL statements.
     /// - Throws: ``SurrealError`` if schema generation or execution fails.
     public func defineEdge(
-        edgeName: String,
-        from fromTable: String,
-        to toTable: String,
+        edgeName: StaticString,
+        from fromTable: StaticString,
+        to toTable: StaticString,
         fields: [SchemaGenerator.FieldDefinition] = [],
         mode: SchemaMode = .schemafull,
         drop: Bool = false,
         execute: Bool = true
     ) async throws(SurrealError) -> [String] {
+        // Convert StaticStrings to Strings
+        let edgeNameStr = String(describing: edgeName)
+        let fromTableStr = String(describing: fromTable)
+        let toTableStr = String(describing: toTable)
+
         // Validate names
-        try SurrealValidator.validateTableName(edgeName)
-        try SurrealValidator.validateTableName(fromTable)
-        try SurrealValidator.validateTableName(toTable)
+        try SurrealValidator.validateTableName(edgeNameStr)
+        try SurrealValidator.validateTableName(fromTableStr)
+        try SurrealValidator.validateTableName(toTableStr)
 
         var statements: [String] = []
 
         // Add drop statement if requested
         if drop {
-            statements.append("REMOVE TABLE IF EXISTS \(edgeName);")
+            statements.append("REMOVE TABLE IF EXISTS \(edgeNameStr);")
         }
 
         // Define the edge table
         statements.append("""
-        DEFINE TABLE \(edgeName) \(mode.toSurrealQL()) TYPE RELATION \
-        IN \(fromTable) OUT \(toTable);
+        DEFINE TABLE \(edgeNameStr) \(mode.toSurrealQL()) TYPE RELATION \
+        IN \(fromTableStr) OUT \(toTableStr);
         """)
 
         // Add field definitions for schemafull mode
@@ -225,7 +233,7 @@ extension SurrealDB {
             for field in fields where field.name != "id" && field.name != "in" && field.name != "out" {
                 try SurrealValidator.validateFieldName(field.name)
 
-                var fieldDef = "DEFINE FIELD \(field.name) ON TABLE \(edgeName) TYPE \(field.type)"
+                var fieldDef = "DEFINE FIELD \(field.name) ON TABLE \(edgeNameStr) TYPE \(field.type)"
                 if field.optional {
                     fieldDef += " FLEXIBLE"
                 }
@@ -287,12 +295,15 @@ extension SurrealDB {
     /// - Parameter tableName: The name of the table to describe.
     /// - Returns: Table information as SurrealValue.
     /// - Throws: ``SurrealError`` if the query fails.
-    public func describeTable(_ tableName: String) async throws(SurrealError) -> SurrealValue {
-        try SurrealValidator.validateTableName(tableName)
+    public func describeTable(_ tableName: StaticString) async throws(SurrealError) -> SurrealValue {
+        // Convert StaticString to String
+        let tableNameStr = String(describing: tableName)
 
-        let results = try await query("INFO FOR TABLE \(tableName)")
+        try SurrealValidator.validateTableName(tableNameStr)
+
+        let results = try await query("INFO FOR TABLE \(tableNameStr)")
         guard let firstResult = results.first else {
-            throw SurrealError.invalidResponse("No information returned for table \(tableName)")
+            throw SurrealError.invalidResponse("No information returned for table \(tableNameStr)")
         }
 
         return firstResult

@@ -62,6 +62,29 @@ public struct FieldDefinitionBuilder: Sendable {
         self.shouldIfNotExists = shouldIfNotExists
     }
 
+    /// Internal initializer for builder methods that already have String field/table names.
+    private init(
+        client: SurrealDB,
+        fieldNameString: String,
+        tableNameString: String,
+        fieldType: FieldType? = nil,
+        defaultValue: String? = nil,
+        valueExpression: String? = nil,
+        assertExpression: String? = nil,
+        isFlexible: Bool = false,
+        shouldIfNotExists: Bool = false
+    ) {
+        self.client = client
+        self.fieldName = fieldNameString
+        self.tableName = tableNameString
+        self.fieldType = fieldType
+        self.defaultValue = defaultValue
+        self.valueExpression = valueExpression
+        self.assertExpression = assertExpression
+        self.isFlexible = isFlexible
+        self.shouldIfNotExists = shouldIfNotExists
+    }
+
     // MARK: - Builder Methods
 
     /// Sets the field type.
@@ -80,8 +103,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func type(_ type: FieldType) -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: type,
             defaultValue: defaultValue,
             valueExpression: valueExpression,
@@ -112,8 +135,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func `default`(_ value: String) -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: fieldType,
             defaultValue: value,
             valueExpression: valueExpression,
@@ -144,8 +167,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func value(_ expression: String) -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: fieldType,
             defaultValue: defaultValue,
             valueExpression: expression,
@@ -176,8 +199,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func assert(_ expression: String) -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: fieldType,
             defaultValue: defaultValue,
             valueExpression: valueExpression,
@@ -203,8 +226,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func flexible() -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: fieldType,
             defaultValue: defaultValue,
             valueExpression: valueExpression,
@@ -230,8 +253,8 @@ public struct FieldDefinitionBuilder: Sendable {
     public func ifNotExists() -> FieldDefinitionBuilder {
         FieldDefinitionBuilder(
             client: client,
-            fieldName: fieldName,
-            tableName: tableName,
+            fieldNameString: fieldName,
+            tableNameString: tableName,
             fieldType: fieldType,
             defaultValue: defaultValue,
             valueExpression: valueExpression,

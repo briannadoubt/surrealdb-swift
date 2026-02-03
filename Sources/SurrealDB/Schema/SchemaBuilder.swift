@@ -57,8 +57,8 @@ public struct SchemaBuilder: Sendable {
     ///     .schemafull()
     ///     .execute()
     /// ```
-    public func defineTable(_ name: String) -> TableDefinitionBuilder {
-        TableDefinitionBuilder(client: client, tableName: name)
+    public func defineTable(_ name: StaticString) -> TableDefinitionBuilder {
+        TableDefinitionBuilder(client: client, tableName: String(describing: name))
     }
 
     // MARK: - Field Definitions
@@ -78,8 +78,8 @@ public struct SchemaBuilder: Sendable {
     ///     .type(.string)
     ///     .execute()
     /// ```
-    public func defineField(_ name: String, on tableName: String) -> FieldDefinitionBuilder {
-        FieldDefinitionBuilder(client: client, fieldName: name, tableName: tableName)
+    public func defineField(_ name: StaticString, on tableName: StaticString) -> FieldDefinitionBuilder {
+        FieldDefinitionBuilder(client: client, fieldName: String(describing: name), tableName: String(describing: tableName))
     }
 
     // MARK: - Index Definitions
@@ -100,7 +100,7 @@ public struct SchemaBuilder: Sendable {
     ///     .unique()
     ///     .execute()
     /// ```
-    public func defineIndex(_ name: String, on tableName: String) -> IndexDefinitionBuilder {
+    public func defineIndex(_ name: StaticString, on tableName: StaticString) -> IndexDefinitionBuilder {
         IndexDefinitionBuilder(client: client, indexName: name, tableName: tableName)
     }
 
@@ -118,9 +118,10 @@ public struct SchemaBuilder: Sendable {
     /// try await db.schema.removeTable("old_users")
     /// ```
     @discardableResult
-    public func removeTable(_ name: String) async throws -> SurrealValue {
-        try SurrealValidator.validateTableName(name)
-        let sql = "REMOVE TABLE \(name)"
+    public func removeTable(_ name: StaticString) async throws -> SurrealValue {
+        let tableName = String(describing: name)
+        try SurrealValidator.validateTableName(tableName)
+        let sql = "REMOVE TABLE \(tableName)"
         let results = try await client.query(sql)
         return results.first ?? .null
     }
@@ -139,10 +140,12 @@ public struct SchemaBuilder: Sendable {
     /// try await db.schema.removeField("old_email", from: "users")
     /// ```
     @discardableResult
-    public func removeField(_ name: String, from tableName: String) async throws -> SurrealValue {
-        try SurrealValidator.validateFieldName(name)
-        try SurrealValidator.validateTableName(tableName)
-        let sql = "REMOVE FIELD \(name) ON TABLE \(tableName)"
+    public func removeField(_ name: StaticString, from tableName: StaticString) async throws -> SurrealValue {
+        let fieldName = String(describing: name)
+        let tableNameStr = String(describing: tableName)
+        try SurrealValidator.validateFieldName(fieldName)
+        try SurrealValidator.validateTableName(tableNameStr)
+        let sql = "REMOVE FIELD \(fieldName) ON TABLE \(tableNameStr)"
         let results = try await client.query(sql)
         return results.first ?? .null
     }
@@ -161,10 +164,12 @@ public struct SchemaBuilder: Sendable {
     /// try await db.schema.removeIndex("old_idx", from: "users")
     /// ```
     @discardableResult
-    public func removeIndex(_ name: String, from tableName: String) async throws -> SurrealValue {
-        try SurrealValidator.validateIndexName(name)
-        try SurrealValidator.validateTableName(tableName)
-        let sql = "REMOVE INDEX \(name) ON TABLE \(tableName)"
+    public func removeIndex(_ name: StaticString, from tableName: StaticString) async throws -> SurrealValue {
+        let indexName = String(describing: name)
+        let tableNameStr = String(describing: tableName)
+        try SurrealValidator.validateIndexName(indexName)
+        try SurrealValidator.validateTableName(tableNameStr)
+        let sql = "REMOVE INDEX \(indexName) ON TABLE \(tableNameStr)"
         let results = try await client.query(sql)
         return results.first ?? .null
     }
@@ -201,9 +206,10 @@ public struct SchemaBuilder: Sendable {
     /// print(info)
     /// ```
     @discardableResult
-    public func infoForTable(_ name: String) async throws -> SurrealValue {
-        try SurrealValidator.validateTableName(name)
-        let results = try await client.query("INFO FOR TABLE \(name)")
+    public func infoForTable(_ name: StaticString) async throws -> SurrealValue {
+        let tableName = String(describing: name)
+        try SurrealValidator.validateTableName(tableName)
+        let results = try await client.query("INFO FOR TABLE \(tableName)")
         return results.first ?? .null
     }
 }

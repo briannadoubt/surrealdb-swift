@@ -44,6 +44,11 @@ public struct SurrealValidator: Sendable {
         try validateIdentifier(name, context: "table name")
     }
 
+    /// Validates a table name (StaticString overload).
+    public static func validateTableName(_ name: StaticString) throws(SurrealError) {
+        try validateTableName(String(describing: name))
+    }
+
     /// Validates a field name (supports dot notation for nested fields).
     public static func validateFieldName(_ name: String) throws(SurrealError) {
         if name == "*" { return } // Special case for SELECT *
@@ -63,9 +68,19 @@ public struct SurrealValidator: Sendable {
         }
     }
 
+    /// Validates a field name (StaticString overload).
+    public static func validateFieldName(_ name: StaticString) throws(SurrealError) {
+        try validateFieldName(String(describing: name))
+    }
+
     /// Validates an index name.
     public static func validateIndexName(_ name: String) throws(SurrealError) {
         try validateIdentifier(name, context: "index name")
+    }
+
+    /// Validates an index name (StaticString overload).
+    public static func validateIndexName(_ name: StaticString) throws(SurrealError) {
+        try validateIndexName(String(describing: name))
     }
 
     /// Validates a list of field names for an index.

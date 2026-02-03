@@ -52,6 +52,30 @@ public struct IndexDefinitionBuilder: Sendable {
         self.shouldIfNotExists = shouldIfNotExists
     }
 
+    /// Creates a new index definition builder with StaticString parameters.
+    ///
+    /// - Parameters:
+    ///   - client: The SurrealDB client to use for execution.
+    ///   - indexName: The name of the index to define.
+    ///   - tableName: The name of the table containing this index.
+    internal init(
+        client: SurrealDB,
+        indexName: StaticString,
+        tableName: StaticString,
+        indexFields: [String] = [],
+        indexType: IndexType = .standard,
+        shouldIfNotExists: Bool = false
+    ) {
+        self.init(
+            client: client,
+            indexName: String(describing: indexName),
+            tableName: String(describing: tableName),
+            indexFields: indexFields,
+            indexType: indexType,
+            shouldIfNotExists: shouldIfNotExists
+        )
+    }
+
     // MARK: - Builder Methods
 
     /// Sets the fields to index.
@@ -67,15 +91,8 @@ public struct IndexDefinitionBuilder: Sendable {
     ///     .fields("first_name", "last_name")
     ///     .execute()
     /// ```
-    public func fields(_ fields: String...) -> IndexDefinitionBuilder {
-        IndexDefinitionBuilder(
-            client: client,
-            indexName: indexName,
-            tableName: tableName,
-            indexFields: fields,
-            indexType: indexType,
-            shouldIfNotExists: shouldIfNotExists
-        )
+    public func fields(_ fields: StaticString...) -> IndexDefinitionBuilder {
+        self.fields(fields.map { String(describing: $0) })
     }
 
     /// Sets the fields to index using an array.
@@ -101,6 +118,24 @@ public struct IndexDefinitionBuilder: Sendable {
             indexType: indexType,
             shouldIfNotExists: shouldIfNotExists
         )
+    }
+
+    /// Sets the fields to index using an array of StaticStrings.
+    ///
+    /// - Parameter fields: The field names to index.
+    /// - Returns: A new builder with the fields set.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let fieldNames: [StaticString] = ["first_name", "last_name"]
+    /// try await db.schema
+    ///     .defineIndex("idx_name", on: "users")
+    ///     .fields(fieldNames)
+    ///     .execute()
+    /// ```
+    public func fields(_ fields: [StaticString]) -> IndexDefinitionBuilder {
+        self.fields(fields.map { String(describing: $0) })
     }
 
     /// Makes the index unique.

@@ -138,12 +138,12 @@ public struct TableDefinitionBuilder: Sendable {
     ///     .relation(from: "users", to: "users")
     ///     .execute()
     /// ```
-    public func relation(from: String, to: String) -> TableDefinitionBuilder {
+    public func relation(from: StaticString, to: StaticString) -> TableDefinitionBuilder {
         TableDefinitionBuilder(
             client: client,
             tableName: tableName,
             schemaMode: schemaMode,
-            tableType: .relation(from: from, to: to),
+            tableType: .relation(from: String(describing: from), to: String(describing: to)),
             shouldDrop: shouldDrop,
             shouldIfNotExists: shouldIfNotExists
         )
