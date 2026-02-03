@@ -40,7 +40,7 @@ public struct SurrealValidator: Sendable {
     ]
 
     /// Validates a table name.
-    public static func validateTableName(_ name: String) throws(SurrealError) {
+    internal static func validateTableName(_ name: String) throws(SurrealError) {
         try validateIdentifier(name, context: "table name")
     }
 
@@ -50,7 +50,7 @@ public struct SurrealValidator: Sendable {
     }
 
     /// Validates a field name (supports dot notation for nested fields).
-    public static func validateFieldName(_ name: String) throws(SurrealError) {
+    internal static func validateFieldName(_ name: String) throws(SurrealError) {
         if name == "*" { return } // Special case for SELECT *
 
         guard !name.isEmpty else {
@@ -74,7 +74,7 @@ public struct SurrealValidator: Sendable {
     }
 
     /// Validates an index name.
-    public static func validateIndexName(_ name: String) throws(SurrealError) {
+    internal static func validateIndexName(_ name: String) throws(SurrealError) {
         try validateIdentifier(name, context: "index name")
     }
 

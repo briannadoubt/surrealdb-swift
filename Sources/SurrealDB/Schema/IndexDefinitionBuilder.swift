@@ -92,29 +92,11 @@ public struct IndexDefinitionBuilder: Sendable {
     ///     .execute()
     /// ```
     public func fields(_ fields: StaticString...) -> IndexDefinitionBuilder {
-        self.fields(fields.map { String(describing: $0) })
-    }
-
-    /// Sets the fields to index using an array.
-    ///
-    /// - Parameter fields: The field names to index.
-    /// - Returns: A new builder with the fields set.
-    ///
-    /// ## Example
-    ///
-    /// ```swift
-    /// let fieldNames = ["first_name", "last_name"]
-    /// try await db.schema
-    ///     .defineIndex("idx_name", on: "users")
-    ///     .fields(fieldNames)
-    ///     .execute()
-    /// ```
-    public func fields(_ fields: [String]) -> IndexDefinitionBuilder {
         IndexDefinitionBuilder(
             client: client,
             indexName: indexName,
             tableName: tableName,
-            indexFields: fields,
+            indexFields: fields.map { String(describing: $0) },
             indexType: indexType,
             shouldIfNotExists: shouldIfNotExists
         )
@@ -135,7 +117,14 @@ public struct IndexDefinitionBuilder: Sendable {
     ///     .execute()
     /// ```
     public func fields(_ fields: [StaticString]) -> IndexDefinitionBuilder {
-        self.fields(fields.map { String(describing: $0) })
+        IndexDefinitionBuilder(
+            client: client,
+            indexName: indexName,
+            tableName: tableName,
+            indexFields: fields.map { String(describing: $0) },
+            indexType: indexType,
+            shouldIfNotExists: shouldIfNotExists
+        )
     }
 
     /// Makes the index unique.
