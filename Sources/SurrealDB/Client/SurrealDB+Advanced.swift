@@ -27,6 +27,11 @@ extension SurrealDB {
         }
 
         let result = try await rpc(method: "relate", params: params)
+
+        if let cache {
+            await cache.invalidate(table: via)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -127,6 +132,9 @@ extension SurrealDB {
         }
 
         _ = try await rpc(method: "import", params: [.string(data)])
+
+        // Import can affect any table, so invalidate entire cache
+        await cache?.invalidateAll()
     }
 
     /// Inserts a relationship between two records.
@@ -162,6 +170,11 @@ extension SurrealDB {
         ]
 
         let result = try await rpc(method: "insert", params: params)
+
+        if let cache {
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 }

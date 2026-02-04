@@ -15,12 +15,14 @@ import Foundation
 /// let users: [User] = try await db.select("users")
 /// ```
 public actor SurrealDB {
-    @SurrealActor private let transport: Transport
+    @SurrealActor internal let transport: Transport
     private var currentNamespace: String?
     private var currentDatabase: String?
     private var authToken: String?
-    private var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
+    internal var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
+    internal var cache: SurrealCache?
+    internal var liveQueryTables: [String: String] = [:]
 
     /// Creates a new SurrealDB client.
     ///
@@ -31,7 +33,9 @@ public actor SurrealDB {
     public init(
         url: String,
         transportType: TransportType = .websocket,
-        config: TransportConfig = .default
+        config: TransportConfig = .default,
+        cachePolicy: CachePolicy? = nil,
+        cacheStorage: (any CacheStorage)? = nil
     ) throws(SurrealError) {
         guard let parsedURL = URL(string: url) else {
             throw SurrealError.connectionError("Invalid URL: \(url)")
@@ -43,13 +47,26 @@ public actor SurrealDB {
         case .http:
             self.transport = HTTPTransport(url: parsedURL, config: config)
         }
+
+        if let cachePolicy {
+            let storage = cacheStorage ?? InMemoryCacheStorage()
+            self.cache = SurrealCache(storage: storage, policy: cachePolicy)
+        }
     }
 
     /// Internal initializer for testing purposes.
     ///
     /// - Parameter transport: The transport to use for this client.
-    internal init(transport: Transport) {
+    internal init(
+        transport: Transport,
+        cachePolicy: CachePolicy? = nil,
+        cacheStorage: (any CacheStorage)? = nil
+    ) {
         self.transport = transport
+        if let cachePolicy {
+            let storage = cacheStorage ?? InMemoryCacheStorage()
+            self.cache = SurrealCache(storage: storage, policy: cachePolicy)
+        }
     }
 
     /// The type of transport to use.
@@ -148,6 +165,9 @@ public actor SurrealDB {
         _ = try await rpc(method: "use", params: [.string(namespace), .string(database)])
         self.currentNamespace = namespace
         self.currentDatabase = database
+
+        // Invalidate cache when switching namespace/database
+        await cache?.invalidateAll()
 
         // Update HTTP transport if applicable
         if let httpTransport = transport as? HTTPTransport {
@@ -265,6 +285,16 @@ public actor SurrealDB {
     ///   - variables: Optional variables to bind in the query.
     /// - Returns: An array of results from the query.
     public func query(_ sql: String, variables: [String: SurrealValue]? = nil) async throws(SurrealError) -> [SurrealValue] {
+        if let cache {
+            let key = CacheKey.query(sql, variables: variables)
+            if let cached = await cache.get(key) {
+                guard case .array(let results) = cached else {
+                    throw SurrealError.invalidResponse("Expected array of results, got \(cached)")
+                }
+                return results
+            }
+        }
+
         var params: [SurrealValue] = [.string(sql)]
         if let variables = variables {
             params.append(.object(variables))
@@ -276,6 +306,12 @@ public actor SurrealDB {
             throw SurrealError.invalidResponse("Expected array of results, got \(result)")
         }
 
+        if let cache {
+            let tables = Self.extractTableNames(from: sql)
+            let key = CacheKey.query(sql, variables: variables)
+            await cache.set(key, value: result, tables: tables)
+        }
+
         return results
     }
 
@@ -284,7 +320,21 @@ public actor SurrealDB {
     /// - Parameter target: The table name or record ID.
     /// - Returns: The selected records.
     public func select<T: Decodable>(_ target: String) async throws(SurrealError) -> [T] {
+        if let cache {
+            let key = CacheKey.select(target)
+            if let cached = await cache.get(key) {
+                return try decodeArray(cached)
+            }
+        }
+
         let result = try await rpc(method: "select", params: [.string(target)])
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            let key = CacheKey.select(target)
+            await cache.set(key, value: result, tables: [table])
+        }
+
         return try decodeArray(result)
     }
 
@@ -301,6 +351,12 @@ public actor SurrealDB {
         }
 
         let result = try await rpc(method: "create", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -317,6 +373,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "insert", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try decodeArray(result)
     }
 
@@ -333,6 +395,12 @@ public actor SurrealDB {
         }
 
         let result = try await rpc(method: "update", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -349,6 +417,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "merge", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -377,6 +451,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "upsert", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -393,6 +473,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "patch", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -401,114 +487,11 @@ public actor SurrealDB {
     /// - Parameter target: The table name or record ID.
     public func delete(_ target: String) async throws(SurrealError) {
         _ = try await rpc(method: "delete", params: [.string(target)])
-    }
 
-    // MARK: - Live Queries
-
-    /// Creates a live query subscription.
-    ///
-    /// - Parameters:
-    ///   - table: The table to watch.
-    ///   - diff: Whether to return diffs instead of full records.
-    /// - Returns: A stream of live query notifications and the query ID.
-    public func live(
-        _ table: String,
-        diff: Bool = false
-    ) async throws(SurrealError) -> (id: String, stream: AsyncStream<LiveQueryNotification>) {
-        guard transport is WebSocketTransport else {
-            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
         }
-
-        let params: [SurrealValue] = [.string(table), .bool(diff)]
-        let result = try await rpc(method: "live", params: params)
-
-        guard case .string(let queryId) = result else {
-            throw SurrealError.invalidResponse("Expected query ID string, got \(result)")
-        }
-
-        let stream = AsyncStream<LiveQueryNotification> { continuation in
-            if liveQueryStreams[queryId] != nil {
-                liveQueryStreams[queryId]?.append(continuation)
-            } else {
-                liveQueryStreams[queryId] = [continuation]
-            }
-        }
-
-        return (queryId, stream)
-    }
-
-    /// Kills a live query subscription.
-    ///
-    /// - Parameter queryId: The live query ID to kill.
-    public func kill(_ queryId: String) async throws(SurrealError) {
-        _ = try await rpc(method: "kill", params: [.string(queryId)])
-
-        if let continuations = liveQueryStreams.removeValue(forKey: queryId) {
-            for continuation in continuations {
-                continuation.finish()
-            }
-        }
-    }
-
-    /// Subscribes to notifications from an existing live query.
-    ///
-    /// This method allows subscribing to an existing live query by its ID,
-    /// enabling multiple listeners for the same query. All subscriptions receive
-    /// the same notifications, making it useful for broadcasting database changes
-    /// to multiple parts of your application.
-    ///
-    /// Multiple calls to ``live(_:diff:)`` and ``subscribeLive(_:)`` with the same
-    /// query ID will create independent streams that all receive notifications.
-    ///
-    /// - Parameter queryId: The live query UUID to subscribe to.
-    /// - Returns: A stream of live query notifications.
-    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using HTTP transport.
-    ///
-    /// Example:
-    /// ```swift
-    /// // Create a live query
-    /// let (queryId, stream1) = try await db.live("users")
-    ///
-    /// // Subscribe to the same query from another context
-    /// let stream2 = try await db.subscribeLive(queryId)
-    /// let stream3 = try await db.subscribeLive(queryId)
-    ///
-    /// // All streams receive the same notifications
-    /// Task {
-    ///     for await notification in stream1 {
-    ///         print("Stream 1:", notification.action)
-    ///     }
-    /// }
-    ///
-    /// Task {
-    ///     for await notification in stream2 {
-    ///         print("Stream 2:", notification.action)
-    ///     }
-    /// }
-    ///
-    /// Task {
-    ///     for await notification in stream3 {
-    ///         print("Stream 3:", notification.action)
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// - Note: When ``kill(_:)`` is called, all streams subscribed to that query ID
-    ///   will be finished and stopped receiving notifications.
-    public func subscribeLive(_ queryId: String) async throws(SurrealError) -> AsyncStream<LiveQueryNotification> {
-        guard transport is WebSocketTransport else {
-            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
-        }
-
-        let stream = AsyncStream<LiveQueryNotification> { continuation in
-            if liveQueryStreams[queryId] != nil {
-                liveQueryStreams[queryId]?.append(continuation)
-            } else {
-                liveQueryStreams[queryId] = [continuation]
-            }
-        }
-
-        return stream
     }
 
     // MARK: - Internal Helpers
@@ -561,6 +544,17 @@ public actor SurrealDB {
         let stream = await transport.notifications
 
         for await notification in stream {
+            // Invalidate cache on live query notifications
+            if let cache {
+                let policy = await cache.cachePolicy
+                if policy.invalidateOnLiveQuery,
+                   notification.action != .close,
+                   let queryId = notification.id,
+                   let table = liveQueryTables[queryId] {
+                    await cache.invalidate(table: table)
+                }
+            }
+
             // Route notification to all subscribed streams
             if let queryId = notification.id,
                let continuations = liveQueryStreams[queryId] {
