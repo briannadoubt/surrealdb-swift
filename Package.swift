@@ -69,6 +69,13 @@ let package = Package(
         .testTarget(
             name: "SurrealDBTests",
             dependencies: ["SurrealDB"]
+        ),
+        .testTarget(
+            name: "SurrealDBLocalStorageTests",
+            dependencies: [
+                "SurrealDB",
+                "SurrealDBLocalStorage"
+            ]
         )
     ]
 )
