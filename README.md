@@ -158,6 +158,99 @@ let user: User? = try await db.query()
 
 See [Security.md](./Sources/SurrealDB/Documentation.docc/Articles/Security.md) for comprehensive security guidelines.
 
+## Client-Side Caching
+
+### Overview
+
+SurrealDB Swift includes built-in client-side caching to reduce database load and improve application performance. The cache uses intelligent invalidation based on table mutations and supports multiple storage backends.
+
+### Cache Policies
+
+```swift
+// Default policy: cache reads, invalidate on writes
+let db = try SurrealDB(
+    url: "ws://localhost:8000/rpc",
+    cachePolicy: .default
+)
+
+// Custom policy: aggressive caching with TTL
+let db = try SurrealDB(
+    url: "ws://localhost:8000/rpc",
+    cachePolicy: CachePolicy(
+        shouldCache: { method, _ in ["select", "query"].contains(method) },
+        shouldInvalidate: { method, _ in ["create", "update", "delete"].contains(method) },
+        defaultTTL: 300.0,  // 5 minutes
+        maxEntries: 1000
+    )
+)
+
+// Disable caching
+let db = try SurrealDB(url: "ws://localhost:8000/rpc", cachePolicy: .disabled)
+```
+
+### Storage Backends
+
+#### In-Memory (Default)
+
+Works on all platforms including WASM. Data is lost on app restart.
+
+```swift
+let db = try SurrealDB(
+    url: "ws://localhost:8000/rpc",
+    cachePolicy: .default,
+    cacheStorage: InMemoryCacheStorage()
+)
+```
+
+#### Persistent Cache (Apple Platforms / Linux)
+
+Uses GRDB (SQLite) for persistent caching across app restarts.
+
+```swift
+import SurrealDBGRDB
+
+let storage = try GRDBCacheStorage(path: "path/to/cache.db")
+let db = try SurrealDB(
+    url: "ws://localhost:8000/rpc",
+    cachePolicy: .default,
+    cacheStorage: storage
+)
+```
+
+#### localStorage Cache (WASM / Browser)
+
+Uses browser localStorage for persistent caching across page reloads.
+
+```swift
+#if os(WASM)
+import SurrealDBLocalStorage
+
+let storage = LocalStorageCacheStorage(prefix: "surrealdb_cache_")
+let db = try SurrealDB(
+    url: "ws://localhost:8000/rpc",
+    cachePolicy: .default,
+    cacheStorage: storage
+)
+#endif
+```
+
+**Browser Storage Limits**: localStorage typically has a 5-10MB quota per origin. Consider implementing eviction strategies if approaching limits.
+
+**Security Considerations**: Data in localStorage is visible in browser developer tools and accessible to all scripts from the same origin.
+
+### Manual Cache Control
+
+```swift
+// Check if a query would be cached
+let isCached = await db.isCached(key: .select("users"))
+
+// Manually invalidate cache entries
+await db.invalidateCache(forTable: "users")
+
+// Clear all cache
+await db.clearCache()
+```
+
 ## Documentation
 
 Browse the full documentation online:
