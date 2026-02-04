@@ -5,7 +5,7 @@ import Foundation
 /// Each cache entry stores the cached `SurrealValue` along with the set of
 /// database tables it depends on (for invalidation) and access metadata
 /// (for LRU eviction).
-public struct CacheEntry: Sendable {
+public struct CacheEntry: Sendable, Codable {
     /// The cached value.
     public let value: SurrealValue
 

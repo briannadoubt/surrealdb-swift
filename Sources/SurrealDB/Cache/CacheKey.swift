@@ -2,7 +2,7 @@
 ///
 /// Cache keys combine the RPC method, target (table or query), and a hash of
 /// the parameters to create a unique identifier for each cacheable request.
-public struct CacheKey: Hashable, Sendable {
+public struct CacheKey: Hashable, Sendable, Codable {
     /// The RPC method (e.g., "select", "query").
     public let method: String
 
@@ -45,5 +45,12 @@ public struct CacheKey: Hashable, Sendable {
             hash = ""
         }
         return CacheKey(method: "query", target: sql, paramsHash: hash)
+    }
+
+    /// Converts the cache key to a storage key string.
+    ///
+    /// Used by persistent storage implementations to generate unique keys.
+    public func toStorageKey() -> String {
+        "\(method):\(target):\(paramsHash)"
     }
 }
