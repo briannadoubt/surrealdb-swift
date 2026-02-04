@@ -21,6 +21,8 @@ public actor SurrealDB {
     private var authToken: String?
     private var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
+    internal var cache: SurrealCache?
+    private var liveQueryTables: [String: String] = [:]
 
     /// Creates a new SurrealDB client.
     ///
@@ -31,7 +33,9 @@ public actor SurrealDB {
     public init(
         url: String,
         transportType: TransportType = .websocket,
-        config: TransportConfig = .default
+        config: TransportConfig = .default,
+        cachePolicy: CachePolicy? = nil,
+        cacheStorage: (any CacheStorage)? = nil
     ) throws(SurrealError) {
         guard let parsedURL = URL(string: url) else {
             throw SurrealError.connectionError("Invalid URL: \(url)")
@@ -43,13 +47,26 @@ public actor SurrealDB {
         case .http:
             self.transport = HTTPTransport(url: parsedURL, config: config)
         }
+
+        if let cachePolicy {
+            let storage = cacheStorage ?? InMemoryCacheStorage()
+            self.cache = SurrealCache(storage: storage, policy: cachePolicy)
+        }
     }
 
     /// Internal initializer for testing purposes.
     ///
     /// - Parameter transport: The transport to use for this client.
-    internal init(transport: Transport) {
+    internal init(
+        transport: Transport,
+        cachePolicy: CachePolicy? = nil,
+        cacheStorage: (any CacheStorage)? = nil
+    ) {
         self.transport = transport
+        if let cachePolicy {
+            let storage = cacheStorage ?? InMemoryCacheStorage()
+            self.cache = SurrealCache(storage: storage, policy: cachePolicy)
+        }
     }
 
     /// The type of transport to use.
@@ -148,6 +165,9 @@ public actor SurrealDB {
         _ = try await rpc(method: "use", params: [.string(namespace), .string(database)])
         self.currentNamespace = namespace
         self.currentDatabase = database
+
+        // Invalidate cache when switching namespace/database
+        await cache?.invalidateAll()
 
         // Update HTTP transport if applicable
         if let httpTransport = transport as? HTTPTransport {
@@ -265,6 +285,16 @@ public actor SurrealDB {
     ///   - variables: Optional variables to bind in the query.
     /// - Returns: An array of results from the query.
     public func query(_ sql: String, variables: [String: SurrealValue]? = nil) async throws(SurrealError) -> [SurrealValue] {
+        if let cache {
+            let key = CacheKey.query(sql, variables: variables)
+            if let cached = await cache.get(key) {
+                guard case .array(let results) = cached else {
+                    throw SurrealError.invalidResponse("Expected array of results, got \(cached)")
+                }
+                return results
+            }
+        }
+
         var params: [SurrealValue] = [.string(sql)]
         if let variables = variables {
             params.append(.object(variables))
@@ -276,6 +306,12 @@ public actor SurrealDB {
             throw SurrealError.invalidResponse("Expected array of results, got \(result)")
         }
 
+        if let cache {
+            let tables = Self.extractTableNames(from: sql)
+            let key = CacheKey.query(sql, variables: variables)
+            await cache.set(key, value: result, tables: tables)
+        }
+
         return results
     }
 
@@ -284,7 +320,21 @@ public actor SurrealDB {
     /// - Parameter target: The table name or record ID.
     /// - Returns: The selected records.
     public func select<T: Decodable>(_ target: String) async throws(SurrealError) -> [T] {
+        if let cache {
+            let key = CacheKey.select(target)
+            if let cached = await cache.get(key) {
+                return try decodeArray(cached)
+            }
+        }
+
         let result = try await rpc(method: "select", params: [.string(target)])
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            let key = CacheKey.select(target)
+            await cache.set(key, value: result, tables: [table])
+        }
+
         return try decodeArray(result)
     }
 
@@ -301,6 +351,12 @@ public actor SurrealDB {
         }
 
         let result = try await rpc(method: "create", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -317,6 +373,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "insert", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try decodeArray(result)
     }
 
@@ -333,6 +395,12 @@ public actor SurrealDB {
         }
 
         let result = try await rpc(method: "update", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -349,6 +417,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "merge", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -377,6 +451,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "upsert", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -393,6 +473,12 @@ public actor SurrealDB {
         ]
 
         let result = try await rpc(method: "patch", params: params)
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
+
         return try result.safelyDecode()
     }
 
@@ -401,6 +487,11 @@ public actor SurrealDB {
     /// - Parameter target: The table name or record ID.
     public func delete(_ target: String) async throws(SurrealError) {
         _ = try await rpc(method: "delete", params: [.string(target)])
+
+        if let cache {
+            let table = Self.extractTableName(from: target)
+            await cache.invalidate(table: table)
+        }
     }
 
     // MARK: - Live Queries
@@ -426,6 +517,8 @@ public actor SurrealDB {
             throw SurrealError.invalidResponse("Expected query ID string, got \(result)")
         }
 
+        liveQueryTables[queryId] = table
+
         let stream = AsyncStream<LiveQueryNotification> { continuation in
             if liveQueryStreams[queryId] != nil {
                 liveQueryStreams[queryId]?.append(continuation)
@@ -442,6 +535,7 @@ public actor SurrealDB {
     /// - Parameter queryId: The live query ID to kill.
     public func kill(_ queryId: String) async throws(SurrealError) {
         _ = try await rpc(method: "kill", params: [.string(queryId)])
+        liveQueryTables.removeValue(forKey: queryId)
 
         if let continuations = liveQueryStreams.removeValue(forKey: queryId) {
             for continuation in continuations {
@@ -561,6 +655,17 @@ public actor SurrealDB {
         let stream = await transport.notifications
 
         for await notification in stream {
+            // Invalidate cache on live query notifications
+            if let cache {
+                let policy = await cache.cachePolicy
+                if policy.invalidateOnLiveQuery,
+                   notification.action != .close,
+                   let queryId = notification.id,
+                   let table = liveQueryTables[queryId] {
+                    await cache.invalidate(table: table)
+                }
+            }
+
             // Route notification to all subscribed streams
             if let queryId = notification.id,
                let continuations = liveQueryStreams[queryId] {
@@ -579,5 +684,67 @@ public actor SurrealDB {
                 }
             }
         }
+    }
+
+    // MARK: - Cache Management
+
+    /// Invalidates all entries in the cache.
+    ///
+    /// Call this to force all subsequent queries to fetch fresh data from the server.
+    public func invalidateCache() async {
+        await cache?.invalidateAll()
+    }
+
+    /// Invalidates cache entries associated with a specific table.
+    ///
+    /// - Parameter table: The table name whose cache entries should be invalidated.
+    public func invalidateCache(table: String) async {
+        await cache?.invalidate(table: table)
+    }
+
+    /// Returns statistics about the current cache state.
+    ///
+    /// Returns `nil` if caching is not enabled.
+    public func cacheStats() async -> CacheStats? {
+        await cache?.stats()
+    }
+
+    // MARK: - Table Name Extraction
+
+    /// Extracts the table name from a target string (e.g., "users:123" -> "users").
+    internal static func extractTableName(from target: String) -> String {
+        if let colonIndex = target.firstIndex(of: ":") {
+            return String(target[target.startIndex..<colonIndex])
+        }
+        return target
+    }
+
+    /// Extracts table names from a SurrealQL query string (best-effort).
+    internal static func extractTableNames(from sql: String) -> Set<String> {
+        var tables = Set<String>()
+
+        // Match common SurrealQL patterns: FROM table, INTO table, UPDATE table, etc.
+        let patterns = [
+            "(?i)FROM\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "(?i)INTO\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "(?i)UPDATE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "(?i)CREATE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "(?i)DELETE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+            "(?i)UPSERT\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let range = NSRange(sql.startIndex..., in: sql)
+                let matches = regex.matches(in: sql, range: range)
+                for match in matches {
+                    if let tableRange = Range(match.range(at: 1), in: sql) {
+                        tables.insert(String(sql[tableRange]))
+                    }
+                }
+            }
+        }
+
+        return tables
     }
 }

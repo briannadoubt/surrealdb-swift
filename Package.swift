@@ -15,11 +15,16 @@ let package = Package(
         .library(
             name: "SurrealDB",
             targets: ["SurrealDB"]
+        ),
+        .library(
+            name: "SurrealDBGRDB",
+            targets: ["SurrealDBGRDB"]
         )
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.0"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0")
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
     ],
     targets: [
         // Macro implementation
@@ -35,6 +40,15 @@ let package = Package(
         .target(
             name: "SurrealDB",
             dependencies: ["SurrealDBMacros"]
+        ),
+
+        // GRDB-backed persistent cache (Apple/Linux only, not WASM)
+        .target(
+            name: "SurrealDBGRDB",
+            dependencies: [
+                "SurrealDB",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ]
         ),
 
         // Tests
