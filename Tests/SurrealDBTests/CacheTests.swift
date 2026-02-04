@@ -12,7 +12,7 @@ struct CacheKeyTests {
 
         #expect(key.method == "select")
         #expect(key.target == "users")
-        #expect(key.paramsHash == "")
+        #expect(key.paramsHash.isEmpty)
     }
 
     @Test("Select key creation with record ID")
@@ -21,7 +21,7 @@ struct CacheKeyTests {
 
         #expect(key.method == "select")
         #expect(key.target == "users:123")
-        #expect(key.paramsHash == "")
+        #expect(key.paramsHash.isEmpty)
     }
 
     @Test("Query key creation without variables")
@@ -30,7 +30,7 @@ struct CacheKeyTests {
 
         #expect(key.method == "query")
         #expect(key.target == "SELECT * FROM users")
-        #expect(key.paramsHash == "")
+        #expect(key.paramsHash.isEmpty)
     }
 
     @Test("Query key creation with variables")
@@ -94,8 +94,8 @@ struct CacheKeyTests {
         let key2 = CacheKey.query("SELECT * FROM users", variables: [:])
 
         // Both should have empty paramsHash
-        #expect(key1.paramsHash == "")
-        #expect(key2.paramsHash == "")
+        #expect(key1.paramsHash.isEmpty)
+        #expect(key2.paramsHash.isEmpty)
         #expect(key1 == key2)
     }
 
@@ -150,7 +150,7 @@ struct CacheKeyTests {
     func manualInitDefaultParamsHash() {
         let key = CacheKey(method: "select", target: "users")
 
-        #expect(key.paramsHash == "")
+        #expect(key.paramsHash.isEmpty)
     }
 }
 
@@ -316,7 +316,7 @@ struct InMemoryCacheStorageTests {
         #expect(await storage.count == 1)
 
         await storage.remove(key)
-        #expect(await storage.count == 0)
+        #expect(await storage.isEmpty)
 
         let retrieved = await storage.get(key)
         #expect(retrieved == nil)
@@ -343,7 +343,7 @@ struct InMemoryCacheStorageTests {
 
         await storage.removeAll()
 
-        #expect(await storage.count == 0)
+        #expect(await storage.isEmpty)
     }
 
     @Test("removeEntries(forTable:) removes correct entries")
@@ -414,7 +414,7 @@ struct InMemoryCacheStorageTests {
         #expect(expired == nil)
 
         // Count should reflect the cleanup
-        #expect(await storage.count == 0)
+        #expect(await storage.isEmpty)
     }
 
     @Test("Access metadata updates on get")
@@ -451,7 +451,7 @@ struct InMemoryCacheStorageTests {
     func countReflectsCurrentEntries() async {
         let storage = InMemoryCacheStorage()
 
-        #expect(await storage.count == 0)
+        #expect(await storage.isEmpty)
 
         await storage.set(
             CacheKey.select("a"),
@@ -526,520 +526,5 @@ struct InMemoryCacheStorageTests {
         let retrieved = await storage.get(key)
         #expect(retrieved?.value == .string("new"))
         #expect(await storage.count == 1)
-    }
-}
-
-// MARK: - SurrealCache Tests
-
-@Suite("SurrealCache Tests")
-struct SurrealCacheTests {
-    @Test("Get and set basic flow")
-    func getSetBasicFlow() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let key = CacheKey.select("users")
-        let value: SurrealValue = .array([
-            .object(["name": .string("Alice")]),
-            .object(["name": .string("Bob")])
-        ])
-
-        await cache.set(key, value: value, tables: ["users"])
-
-        let retrieved = await cache.get(key)
-        #expect(retrieved == value)
-    }
-
-    @Test("Get returns nil for missing key")
-    func getMissingKey() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let result = await cache.get(CacheKey.select("nonexistent"))
-        #expect(result == nil)
-    }
-
-    @Test("TTL enforcement via policy default")
-    func ttlEnforcementViaPolicy() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: 0.1, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let key = CacheKey.select("users")
-        await cache.set(key, value: .string("data"), tables: ["users"])
-
-        // Should be accessible immediately
-        let immediate = await cache.get(key)
-        #expect(immediate == .string("data"))
-
-        // Wait for TTL to expire
-        try await Task.sleep(for: .milliseconds(150))
-
-        // Should be nil after expiration
-        let expired = await cache.get(key)
-        #expect(expired == nil)
-    }
-
-    @Test("TTL override per entry")
-    func ttlOverridePerEntry() async throws {
-        let storage = InMemoryCacheStorage()
-        // Policy has long default TTL
-        let policy = CachePolicy(defaultTTL: 3600, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        // Set entry with short TTL override
-        let key = CacheKey.select("temp")
-        await cache.set(key, value: .string("temporary"), tables: ["temp"], ttl: 0.1)
-
-        // Should be accessible immediately
-        let immediate = await cache.get(key)
-        #expect(immediate == .string("temporary"))
-
-        // Wait for the entry-specific TTL to expire
-        try await Task.sleep(for: .milliseconds(150))
-
-        // Should be nil after expiration
-        let expired = await cache.get(key)
-        #expect(expired == nil)
-    }
-
-    @Test("Table-based invalidation")
-    func tableBasedInvalidation() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let usersKey = CacheKey.select("users")
-        let postsKey = CacheKey.select("posts")
-        let joinKey = CacheKey.query("SELECT * FROM users JOIN posts")
-
-        await cache.set(usersKey, value: .string("users"), tables: ["users"])
-        await cache.set(postsKey, value: .string("posts"), tables: ["posts"])
-        await cache.set(joinKey, value: .string("joined"), tables: ["users", "posts"])
-
-        // Invalidate "users" table
-        await cache.invalidate(table: "users")
-
-        // Users entry should be gone
-        #expect(await cache.get(usersKey) == nil)
-
-        // Posts entry should remain
-        #expect(await cache.get(postsKey) == .string("posts"))
-
-        // Join entry should be gone (it depends on "users")
-        #expect(await cache.get(joinKey) == nil)
-    }
-
-    @Test("Invalidate all entries")
-    func invalidateAll() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        await cache.set(CacheKey.select("users"), value: .string("users"), tables: ["users"])
-        await cache.set(CacheKey.select("posts"), value: .string("posts"), tables: ["posts"])
-        await cache.set(CacheKey.select("comments"), value: .string("comments"), tables: ["comments"])
-
-        await cache.invalidateAll()
-
-        #expect(await cache.get(CacheKey.select("users")) == nil)
-        #expect(await cache.get(CacheKey.select("posts")) == nil)
-        #expect(await cache.get(CacheKey.select("comments")) == nil)
-    }
-
-    @Test("LRU eviction when maxEntries exceeded")
-    func lruEviction() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: 3)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        // Fill the cache to capacity
-        await cache.set(CacheKey.select("a"), value: .string("a"), tables: ["a"])
-        try await Task.sleep(for: .milliseconds(10))
-        await cache.set(CacheKey.select("b"), value: .string("b"), tables: ["b"])
-        try await Task.sleep(for: .milliseconds(10))
-        await cache.set(CacheKey.select("c"), value: .string("c"), tables: ["c"])
-
-        // Access "a" to make it recently used
-        try await Task.sleep(for: .milliseconds(10))
-        _ = await cache.get(CacheKey.select("a"))
-
-        // Adding a fourth entry should trigger eviction
-        try await Task.sleep(for: .milliseconds(10))
-        await cache.set(CacheKey.select("d"), value: .string("d"), tables: ["d"])
-
-        // "d" should be present (just added)
-        #expect(await cache.get(CacheKey.select("d")) == .string("d"))
-
-        // "a" should still be present (recently accessed)
-        #expect(await cache.get(CacheKey.select("a")) == .string("a"))
-
-        // "b" should have been evicted (least recently used)
-        // Note: eviction removes max(1, maxEntries/10) entries which is 1 for maxEntries=3
-        // The LRU order before eviction was: b, c, a (b is oldest access)
-        #expect(await cache.get(CacheKey.select("b")) == nil)
-    }
-
-    @Test("Cache stats with entries")
-    func cacheStats() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        await cache.set(CacheKey.select("users"), value: .string("users"), tables: ["users"])
-
-        try await Task.sleep(for: .milliseconds(10))
-
-        await cache.set(CacheKey.select("posts"), value: .string("posts"), tables: ["posts"])
-
-        let stats = await cache.stats()
-
-        #expect(stats.totalEntries == 2)
-        #expect(stats.expiredEntries == 0)
-        #expect(stats.tables == Set(["users", "posts"]))
-        #expect(stats.oldestEntry != nil)
-        #expect(stats.newestEntry != nil)
-
-        if let oldest = stats.oldestEntry, let newest = stats.newestEntry {
-            #expect(oldest <= newest)
-        }
-    }
-
-    @Test("Cache stats with expired entries")
-    func cacheStatsWithExpired() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        // One normal entry
-        await cache.set(CacheKey.select("users"), value: .string("users"), tables: ["users"])
-
-        // One entry with short TTL
-        await cache.set(CacheKey.select("temp"), value: .string("temp"), tables: ["temp"], ttl: 0.1)
-
-        // Wait for the short-lived entry to expire
-        try await Task.sleep(for: .milliseconds(150))
-
-        let stats = await cache.stats()
-
-        #expect(stats.totalEntries == 2)
-        #expect(stats.expiredEntries == 1)
-    }
-
-    @Test("Cache stats when empty")
-    func cacheStatsEmpty() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let stats = await cache.stats()
-
-        #expect(stats.totalEntries == 0)
-        #expect(stats.expiredEntries == 0)
-        #expect(stats.tables.isEmpty)
-        #expect(stats.oldestEntry == nil)
-        #expect(stats.newestEntry == nil)
-    }
-
-    @Test("Cache policy is accessible")
-    func cachePolicyAccessible() async {
-        let policy = CachePolicy(
-            defaultTTL: 120,
-            maxEntries: 500,
-            evictionStrategy: .lru,
-            invalidateOnLiveQuery: false
-        )
-        let cache = SurrealCache(storage: InMemoryCacheStorage(), policy: policy)
-
-        let retrievedPolicy = await cache.cachePolicy
-
-        #expect(retrievedPolicy.defaultTTL == 120)
-        #expect(retrievedPolicy.maxEntries == 500)
-        #expect(retrievedPolicy.invalidateOnLiveQuery == false)
-    }
-
-    @Test("Policy defaultTTL is used when no per-entry TTL")
-    func policyDefaultTTLUsed() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: 0.1, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let key = CacheKey.select("users")
-        // No TTL override -- should use the policy's defaultTTL of 0.1s
-        await cache.set(key, value: .string("data"), tables: ["users"])
-
-        #expect(await cache.get(key) == .string("data"))
-
-        try await Task.sleep(for: .milliseconds(150))
-
-        #expect(await cache.get(key) == nil)
-    }
-
-    @Test("Nil policy defaultTTL means no expiration")
-    func nilPolicyTTLMeansNoExpiration() async throws {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        let key = CacheKey.select("persistent")
-        await cache.set(key, value: .string("forever"), tables: ["persistent"])
-
-        // Sleep a bit to prove it doesn't expire
-        try await Task.sleep(for: .milliseconds(50))
-
-        #expect(await cache.get(key) == .string("forever"))
-    }
-
-    @Test("Multiple tables in stats")
-    func multipleTablesInStats() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        await cache.set(
-            CacheKey.query("SELECT * FROM users, posts, comments"),
-            value: .null,
-            tables: ["users", "posts", "comments"]
-        )
-
-        let stats = await cache.stats()
-        #expect(stats.tables == Set(["users", "posts", "comments"]))
-    }
-
-    @Test("Invalidating a table that has no entries is a no-op")
-    func invalidateNonexistentTable() async {
-        let storage = InMemoryCacheStorage()
-        let policy = CachePolicy(defaultTTL: nil, maxEntries: nil)
-        let cache = SurrealCache(storage: storage, policy: policy)
-
-        await cache.set(CacheKey.select("users"), value: .string("data"), tables: ["users"])
-
-        // Invalidating a table with no associated entries should not affect anything
-        await cache.invalidate(table: "nonexistent")
-
-        #expect(await cache.get(CacheKey.select("users")) == .string("data"))
-    }
-}
-
-// MARK: - CachePolicy Tests
-
-@Suite("Cache Policy Tests")
-struct CachePolicyTests {
-    @Test("Default policy values")
-    func defaultPolicyValues() {
-        let policy = CachePolicy.default
-
-        #expect(policy.defaultTTL == 300)
-        #expect(policy.maxEntries == 1000)
-        #expect(policy.invalidateOnLiveQuery == true)
-    }
-
-    @Test("Aggressive policy values")
-    func aggressivePolicyValues() {
-        let policy = CachePolicy.aggressive
-
-        #expect(policy.defaultTTL == 1800)
-        #expect(policy.maxEntries == 5000)
-    }
-
-    @Test("Short-lived policy values")
-    func shortLivedPolicyValues() {
-        let policy = CachePolicy.shortLived
-
-        #expect(policy.defaultTTL == 30)
-        #expect(policy.maxEntries == 100)
-    }
-
-    @Test("Custom policy")
-    func customPolicy() {
-        let policy = CachePolicy(
-            defaultTTL: 60,
-            maxEntries: 200,
-            evictionStrategy: .lru,
-            invalidateOnLiveQuery: false
-        )
-
-        #expect(policy.defaultTTL == 60)
-        #expect(policy.maxEntries == 200)
-        #expect(policy.invalidateOnLiveQuery == false)
-    }
-
-    @Test("Policy with nil TTL and nil maxEntries")
-    func policyWithNilValues() {
-        let policy = CachePolicy(
-            defaultTTL: nil,
-            maxEntries: nil
-        )
-
-        #expect(policy.defaultTTL == nil)
-        #expect(policy.maxEntries == nil)
-    }
-}
-
-// MARK: - Table Name Extraction Tests
-
-@Suite("Table Name Extraction Tests")
-struct TableNameExtractionTests {
-    @Test("extractTableName from plain table name")
-    func extractTableNamePlain() {
-        let result = SurrealDB.extractTableName(from: "users")
-        #expect(result == "users")
-    }
-
-    @Test("extractTableName from record ID")
-    func extractTableNameFromRecordID() {
-        let result = SurrealDB.extractTableName(from: "users:123")
-        #expect(result == "users")
-    }
-
-    @Test("extractTableName from record ID with string ID")
-    func extractTableNameFromStringRecordID() {
-        let result = SurrealDB.extractTableName(from: "users:john_doe")
-        #expect(result == "users")
-    }
-
-    @Test("extractTableName from record ID with complex ID")
-    func extractTableNameFromComplexRecordID() {
-        let result = SurrealDB.extractTableName(from: "events:2024:01:15")
-        #expect(result == "events")
-    }
-
-    @Test("extractTableNames from simple SELECT")
-    func extractTableNamesFromSimpleSelect() {
-        let result = SurrealDB.extractTableNames(from: "SELECT * FROM users")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from SELECT with WHERE clause")
-    func extractTableNamesFromSelectWithWhere() {
-        let result = SurrealDB.extractTableNames(from: "SELECT * FROM users WHERE age > 18")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from subquery")
-    func extractTableNamesFromSubquery() {
-        let sql = "SELECT * FROM users WHERE id IN (SELECT id FROM orders)"
-        let result = SurrealDB.extractTableNames(from: sql)
-        #expect(result == Set(["users", "orders"]))
-    }
-
-    @Test("extractTableNames from CREATE statement")
-    func extractTableNamesFromCreate() {
-        let result = SurrealDB.extractTableNames(from: "CREATE users SET name = 'John'")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from UPDATE statement")
-    func extractTableNamesFromUpdate() {
-        let result = SurrealDB.extractTableNames(from: "UPDATE users SET active = true")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from DELETE statement")
-    func extractTableNamesFromDelete() {
-        let result = SurrealDB.extractTableNames(from: "DELETE users WHERE inactive = true")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from INSERT INTO statement")
-    func extractTableNamesFromInsertInto() {
-        let result = SurrealDB.extractTableNames(from: "INSERT INTO users (name) VALUES ('Alice')")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from UPSERT statement")
-    func extractTableNamesFromUpsert() {
-        let result = SurrealDB.extractTableNames(from: "UPSERT users SET name = 'John'")
-        #expect(result == Set(["users"]))
-    }
-
-    @Test("extractTableNames from complex query with multiple tables")
-    func extractTableNamesFromComplexQuery() {
-        let sql = """
-        SELECT * FROM users WHERE id IN (
-            SELECT user_id FROM orders WHERE product_id IN (
-                SELECT id FROM products
-            )
-        )
-        """
-        let result = SurrealDB.extractTableNames(from: sql)
-        #expect(result.contains("users"))
-        #expect(result.contains("orders"))
-        #expect(result.contains("products"))
-    }
-
-    @Test("extractTableNames is case insensitive for keywords")
-    func extractTableNamesCaseInsensitive() {
-        let result1 = SurrealDB.extractTableNames(from: "select * from users")
-        let result2 = SurrealDB.extractTableNames(from: "SELECT * FROM users")
-        let result3 = SurrealDB.extractTableNames(from: "Select * From users")
-
-        #expect(result1 == Set(["users"]))
-        #expect(result2 == Set(["users"]))
-        #expect(result3 == Set(["users"]))
-    }
-
-    @Test("extractTableNames from query with no recognizable tables")
-    func extractTableNamesFromEmptyQuery() {
-        let result = SurrealDB.extractTableNames(from: "RETURN 1 + 2")
-        #expect(result.isEmpty)
-    }
-
-    @Test("extractTableNames with underscored table names")
-    func extractTableNamesWithUnderscores() {
-        let result = SurrealDB.extractTableNames(from: "SELECT * FROM user_profiles")
-        #expect(result == Set(["user_profiles"]))
-    }
-
-    @Test("extractTableNames with multiple FROM clauses")
-    func extractTableNamesMultipleFromClauses() {
-        let sql = "SELECT * FROM users; SELECT * FROM posts"
-        let result = SurrealDB.extractTableNames(from: sql)
-        #expect(result.contains("users"))
-        #expect(result.contains("posts"))
-    }
-}
-
-// MARK: - CacheStats Tests
-
-@Suite("Cache Stats Tests")
-struct CacheStatsTests {
-    @Test("CacheStats stores all properties correctly")
-    func cacheStatsProperties() {
-        let now = Date()
-        let earlier = now.addingTimeInterval(-60)
-
-        let stats = CacheStats(
-            totalEntries: 10,
-            expiredEntries: 2,
-            tables: Set(["users", "posts"]),
-            oldestEntry: earlier,
-            newestEntry: now
-        )
-
-        #expect(stats.totalEntries == 10)
-        #expect(stats.expiredEntries == 2)
-        #expect(stats.tables.count == 2)
-        #expect(stats.tables.contains("users"))
-        #expect(stats.tables.contains("posts"))
-        #expect(stats.oldestEntry == earlier)
-        #expect(stats.newestEntry == now)
-    }
-
-    @Test("CacheStats with nil dates when empty")
-    func cacheStatsEmptyDates() {
-        let stats = CacheStats(
-            totalEntries: 0,
-            expiredEntries: 0,
-            tables: [],
-            oldestEntry: nil,
-            newestEntry: nil
-        )
-
-        #expect(stats.totalEntries == 0)
-        #expect(stats.oldestEntry == nil)
-        #expect(stats.newestEntry == nil)
     }
 }

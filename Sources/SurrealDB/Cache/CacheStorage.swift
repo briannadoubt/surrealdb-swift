@@ -65,4 +65,7 @@ public protocol CacheStorage: Sendable {
 
     /// The number of entries currently in the cache.
     var count: Int { get async }
+
+    /// Whether the cache is empty.
+    var isEmpty: Bool { get async }
 }

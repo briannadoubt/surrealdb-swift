@@ -37,6 +37,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Install SQLite3 development headers
+      run: apt-get update && apt-get install -y libsqlite3-dev
+
     - name: Show Swift version
       run: swift --version
 

@@ -67,17 +67,17 @@ public final class GRDBCacheStorage: CacheStorage, @unchecked Sendable {
         var migrator = DatabaseMigrator()
 
         migrator.registerMigration("v1") { db in
-            try db.create(table: "cache_entries", ifNotExists: true) { t in
-                t.primaryKey("key", .text).notNull()
-                t.column("method", .text).notNull()
-                t.column("target", .text).notNull()
-                t.column("paramsHash", .text).notNull()
-                t.column("value", .blob).notNull()
-                t.column("tables", .text).notNull()
-                t.column("createdAt", .double).notNull()
-                t.column("lastAccessedAt", .double).notNull()
-                t.column("accessCount", .integer).notNull().defaults(to: 0)
-                t.column("ttl", .double)
+            try db.create(table: "cache_entries", ifNotExists: true) { table in
+                table.primaryKey("key", .text).notNull()
+                table.column("method", .text).notNull()
+                table.column("target", .text).notNull()
+                table.column("paramsHash", .text).notNull()
+                table.column("value", .blob).notNull()
+                table.column("tables", .text).notNull()
+                table.column("createdAt", .double).notNull()
+                table.column("lastAccessedAt", .double).notNull()
+                table.column("accessCount", .integer).notNull().defaults(to: 0)
+                table.column("ttl", .double)
             }
 
             try db.create(
@@ -163,7 +163,7 @@ public final class GRDBCacheStorage: CacheStorage, @unchecked Sendable {
                         entry.createdAt.timeIntervalSince1970,
                         entry.lastAccessedAt.timeIntervalSince1970,
                         entry.accessCount,
-                        entry.ttl,
+                        entry.ttl
                     ]
                 )
             }
@@ -214,7 +214,7 @@ public final class GRDBCacheStorage: CacheStorage, @unchecked Sendable {
                         table,
                         "\(table),%",
                         "%,\(table),%",
-                        "%,\(table)",
+                        "%,\(table)"
                     ]
                 )
             }
@@ -254,6 +254,18 @@ public final class GRDBCacheStorage: CacheStorage, @unchecked Sendable {
                 }
             } catch {
                 return 0
+            }
+        }
+    }
+
+    public var isEmpty: Bool {
+        get async {
+            do {
+                return try await dbWriter.read { db in
+                    try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cache_entries") == 0
+                }
+            } catch {
+                return true
             }
         }
     }

@@ -15,14 +15,14 @@ import Foundation
 /// let users: [User] = try await db.select("users")
 /// ```
 public actor SurrealDB {
-    @SurrealActor private let transport: Transport
+    @SurrealActor internal let transport: Transport
     private var currentNamespace: String?
     private var currentDatabase: String?
     private var authToken: String?
-    private var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
+    internal var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
     internal var cache: SurrealCache?
-    private var liveQueryTables: [String: String] = [:]
+    internal var liveQueryTables: [String: String] = [:]
 
     /// Creates a new SurrealDB client.
     ///
@@ -494,117 +494,6 @@ public actor SurrealDB {
         }
     }
 
-    // MARK: - Live Queries
-
-    /// Creates a live query subscription.
-    ///
-    /// - Parameters:
-    ///   - table: The table to watch.
-    ///   - diff: Whether to return diffs instead of full records.
-    /// - Returns: A stream of live query notifications and the query ID.
-    public func live(
-        _ table: String,
-        diff: Bool = false
-    ) async throws(SurrealError) -> (id: String, stream: AsyncStream<LiveQueryNotification>) {
-        guard transport is WebSocketTransport else {
-            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
-        }
-
-        let params: [SurrealValue] = [.string(table), .bool(diff)]
-        let result = try await rpc(method: "live", params: params)
-
-        guard case .string(let queryId) = result else {
-            throw SurrealError.invalidResponse("Expected query ID string, got \(result)")
-        }
-
-        liveQueryTables[queryId] = table
-
-        let stream = AsyncStream<LiveQueryNotification> { continuation in
-            if liveQueryStreams[queryId] != nil {
-                liveQueryStreams[queryId]?.append(continuation)
-            } else {
-                liveQueryStreams[queryId] = [continuation]
-            }
-        }
-
-        return (queryId, stream)
-    }
-
-    /// Kills a live query subscription.
-    ///
-    /// - Parameter queryId: The live query ID to kill.
-    public func kill(_ queryId: String) async throws(SurrealError) {
-        _ = try await rpc(method: "kill", params: [.string(queryId)])
-        liveQueryTables.removeValue(forKey: queryId)
-
-        if let continuations = liveQueryStreams.removeValue(forKey: queryId) {
-            for continuation in continuations {
-                continuation.finish()
-            }
-        }
-    }
-
-    /// Subscribes to notifications from an existing live query.
-    ///
-    /// This method allows subscribing to an existing live query by its ID,
-    /// enabling multiple listeners for the same query. All subscriptions receive
-    /// the same notifications, making it useful for broadcasting database changes
-    /// to multiple parts of your application.
-    ///
-    /// Multiple calls to ``live(_:diff:)`` and ``subscribeLive(_:)`` with the same
-    /// query ID will create independent streams that all receive notifications.
-    ///
-    /// - Parameter queryId: The live query UUID to subscribe to.
-    /// - Returns: A stream of live query notifications.
-    /// - Throws: ``SurrealError/unsupportedOperation(_:)`` if using HTTP transport.
-    ///
-    /// Example:
-    /// ```swift
-    /// // Create a live query
-    /// let (queryId, stream1) = try await db.live("users")
-    ///
-    /// // Subscribe to the same query from another context
-    /// let stream2 = try await db.subscribeLive(queryId)
-    /// let stream3 = try await db.subscribeLive(queryId)
-    ///
-    /// // All streams receive the same notifications
-    /// Task {
-    ///     for await notification in stream1 {
-    ///         print("Stream 1:", notification.action)
-    ///     }
-    /// }
-    ///
-    /// Task {
-    ///     for await notification in stream2 {
-    ///         print("Stream 2:", notification.action)
-    ///     }
-    /// }
-    ///
-    /// Task {
-    ///     for await notification in stream3 {
-    ///         print("Stream 3:", notification.action)
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// - Note: When ``kill(_:)`` is called, all streams subscribed to that query ID
-    ///   will be finished and stopped receiving notifications.
-    public func subscribeLive(_ queryId: String) async throws(SurrealError) -> AsyncStream<LiveQueryNotification> {
-        guard transport is WebSocketTransport else {
-            throw SurrealError.unsupportedOperation("Live queries are only supported with WebSocket transport")
-        }
-
-        let stream = AsyncStream<LiveQueryNotification> { continuation in
-            if liveQueryStreams[queryId] != nil {
-                liveQueryStreams[queryId]?.append(continuation)
-            } else {
-                liveQueryStreams[queryId] = [continuation]
-            }
-        }
-
-        return stream
-    }
-
     // MARK: - Internal Helpers
 
     internal func rpc(method: String, params: [SurrealValue]?) async throws(SurrealError) -> SurrealValue {
@@ -684,67 +573,5 @@ public actor SurrealDB {
                 }
             }
         }
-    }
-
-    // MARK: - Cache Management
-
-    /// Invalidates all entries in the cache.
-    ///
-    /// Call this to force all subsequent queries to fetch fresh data from the server.
-    public func invalidateCache() async {
-        await cache?.invalidateAll()
-    }
-
-    /// Invalidates cache entries associated with a specific table.
-    ///
-    /// - Parameter table: The table name whose cache entries should be invalidated.
-    public func invalidateCache(table: String) async {
-        await cache?.invalidate(table: table)
-    }
-
-    /// Returns statistics about the current cache state.
-    ///
-    /// Returns `nil` if caching is not enabled.
-    public func cacheStats() async -> CacheStats? {
-        await cache?.stats()
-    }
-
-    // MARK: - Table Name Extraction
-
-    /// Extracts the table name from a target string (e.g., "users:123" -> "users").
-    internal static func extractTableName(from target: String) -> String {
-        if let colonIndex = target.firstIndex(of: ":") {
-            return String(target[target.startIndex..<colonIndex])
-        }
-        return target
-    }
-
-    /// Extracts table names from a SurrealQL query string (best-effort).
-    internal static func extractTableNames(from sql: String) -> Set<String> {
-        var tables = Set<String>()
-
-        // Match common SurrealQL patterns: FROM table, INTO table, UPDATE table, etc.
-        let patterns = [
-            "(?i)FROM\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-            "(?i)INTO\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-            "(?i)UPDATE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-            "(?i)CREATE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-            "(?i)DELETE\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-            "(?i)UPSERT\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-        ]
-
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern) {
-                let range = NSRange(sql.startIndex..., in: sql)
-                let matches = regex.matches(in: sql, range: range)
-                for match in matches {
-                    if let tableRange = Range(match.range(at: 1), in: sql) {
-                        tables.insert(String(sql[tableRange]))
-                    }
-                }
-            }
-        }
-
-        return tables
     }
 }

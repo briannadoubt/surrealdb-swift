@@ -54,4 +54,8 @@ public actor InMemoryCacheStorage: CacheStorage {
     public var count: Int {
         entries.count
     }
+
+    public var isEmpty: Bool {
+        entries.isEmpty
+    }
 }
