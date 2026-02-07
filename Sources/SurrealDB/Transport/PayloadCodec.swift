@@ -104,7 +104,7 @@ private enum MiniCBOR {
                 }
             }
         case let value as NSNumber:
-            if CFGetTypeID(value) == CFBooleanGetTypeID() {
+            if isBooleanNumber(value) {
                 try encodeValue(value.boolValue, into: &data)
             } else {
                 try encodeValue(value.doubleValue, into: &data)
@@ -112,6 +112,11 @@ private enum MiniCBOR {
         default:
             throw MiniCBORError.unsupportedType(String(describing: type(of: value)))
         }
+    }
+
+    /// Foundation-only bool detection for NSNumber that works on Linux and Darwin.
+    private static func isBooleanNumber(_ value: NSNumber) -> Bool {
+        String(cString: value.objCType) == "c"
     }
 
     private static func encodeInteger(_ value: Int, into data: inout Data) throws {
