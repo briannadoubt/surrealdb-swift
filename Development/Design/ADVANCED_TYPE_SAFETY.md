@@ -628,34 +628,34 @@ distributed actor UserService {
 ## Implementation Roadmap
 
 ### Phase 1: Property Wrappers
-- [ ] `@ID` for record IDs
-- [ ] `@Relation` for relationships
-- [ ] `@Computed` for computed fields
-- [ ] `@Index` for indexing hints
+- [x] `@ID` for record IDs
+- [x] `@Relation` for relationships
+- [x] `@Computed` for computed fields
+- [x] `@Index` for indexing hints
 
 ### Phase 2: KeyPath Queries
-- [ ] KeyPath-based select
-- [ ] KeyPath-based where clauses
-- [ ] KeyPath-based ordering
-- [ ] Type extraction from KeyPaths
+- [x] KeyPath-based select
+- [x] KeyPath-based where clauses
+- [x] KeyPath-based ordering
+- [x] Type extraction from KeyPaths
 
 ### Phase 3: Result Builders
-- [ ] `@QueryDSL` result builder
-- [ ] Query components (Select, Where, etc.)
-- [ ] Type-safe predicates
-- [ ] Graph traversal builder
+- [x] `@QueryDSL` result builder
+- [x] Query components (Select, Where, etc.)
+- [x] Type-safe predicates
+- [x] Graph traversal builder
 
 ### Phase 4: Graph Models
-- [ ] `SurrealModel` protocol
-- [ ] `EdgeModel` protocol
-- [ ] Relationship loading
+- [x] `SurrealModel` protocol
+- [x] `EdgeModel` protocol
+- [x] Relationship loading
 - [ ] Automatic joins
 
 ### Phase 5: Trebuchet Integration
-- [ ] `SurrealDBProtocol` extraction
+- [x] `SurrealDBService` protocol extraction
 - [ ] `DistributedSurrealDB` actor
-- [ ] Serialization helpers
-- [ ] Documentation
+- [x] Serialization helpers
+- [x] Documentation
 
 ---
 

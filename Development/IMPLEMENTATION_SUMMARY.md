@@ -140,16 +140,13 @@ All phases from the plan have been successfully implemented and tested.
 ### Unit Tests: ✅ PASSING
 
 ```
-Test Suite 'All tests' passed
-Executed 39 tests, with 8 tests skipped and 0 failures
+Test run with 378 tests in 34 suites passed.
 ```
 
-**Breakdown:**
-- RecordIDTests: 10/10 passed ✅
-- SurrealValueTests: 13/13 passed ✅
-- JSONRPCModelsTests: 6/6 passed ✅
-- QueryBuilderTests: 2/2 passed ✅
-- IntegrationTests: 8 skipped (require `SURREALDB_TEST=1`)
+**Integration tests policy (intentional):**
+- Integration tests are local-only by design
+- They run only when `SURREALDB_TEST=1` is set
+- Default `swift test` in CI does not run local integration cases
 
 ### Build Status: ✅ SUCCESSFUL
 
@@ -271,15 +268,15 @@ try await db.kill(queryId)
    - Requires Swift 6.0 for strict concurrency
    - Higher minimum OS versions for async/await
 
-## Future Enhancements
+## Backlog Status (Updated)
 
-As outlined in the plan, these features are deferred to future versions:
+Previously deferred items have now been implemented:
 
-1. **CBOR Encoding** - Binary encoding option
-2. **Automatic Reconnection** - WebSocket reconnect with backoff
-3. **Type-Safe Query Builder** - Result builder syntax
-4. **Connection Pooling** - HTTP connection pooling
-5. **Logging/Metrics** - Structured logging and metrics
+1. **CBOR Encoding** - Added `PayloadEncoding` with JSON/CBOR codec support
+2. **Automatic Reconnection** - WebSocket reconnection now emits lifecycle events and restores auth/namespace/database session state in `SurrealDB`
+3. **Type-Safe Query Builder** - Added `@resultBuilder`-based query DSL (`Select`, `Where`, `OrderBy`, `Limit`, `Offset`)
+4. **Connection Pooling** - Added configurable HTTP connection pooling via `httpConnectionPoolSize`
+5. **Logging/Metrics** - Added pluggable observability interfaces (`SurrealLogger`, `SurrealMetricsRecorder`)
 
 ## Verification
 
@@ -293,7 +290,7 @@ swift build
 ### Run Tests
 ```bash
 swift test
-# ✅ 39 tests passed (8 integration tests skipped)
+# ✅ Unit test suite passes (integration tests remain local-only by env gate)
 ```
 
 ### Run Integration Tests

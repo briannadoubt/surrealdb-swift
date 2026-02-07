@@ -13,6 +13,9 @@ A native Swift client for [SurrealDB](https://surrealdb.com), the ultimate multi
 - ✅ **Fluent query builder** - Build SurrealQL queries with a type-safe API
 - ✅ **SQL injection prevention** - Automatic parameter binding for all queries
 - ✅ **Automatic reconnection** - Configurable exponential backoff on connection loss
+- ✅ **Payload encoding options** - JSON (default) or CBOR transport payloads
+- ✅ **HTTP connection pooling** - Configurable max connections per host
+- ✅ **Observability hooks** - Plug in your logger and metrics recorder
 - ✅ **Timeout configuration** - Fine-grained control over request and connection timeouts
 - ✅ **Full SurrealQL support** - Execute any SurrealQL query directly
 - ✅ **Swift 6 concurrency** - Built with modern Swift concurrency from the ground up
@@ -108,6 +111,8 @@ Configure timeouts and automatic reconnection:
 let config = TransportConfig(
     requestTimeout: 30.0,      // 30 seconds per request
     connectionTimeout: 10.0,   // 10 seconds to establish connection
+    payloadEncoding: .json,    // or .cbor
+    httpConnectionPoolSize: 8, // max HTTP connections per host
     reconnectionPolicy: .exponentialBackoff(
         initialDelay: 1.0,
         maxDelay: 60.0,
@@ -187,6 +192,18 @@ let db = try SurrealDB(
 // Disable caching
 let db = try SurrealDB(url: "ws://localhost:8000/rpc", cachePolicy: .disabled)
 ```
+
+## Trebuchet App Integration
+
+Use the built-in `SurrealDBService` protocol as your app-facing boundary. Local mode uses `LocalSurrealDBService` (adapter over `SurrealDB`), and distributed mode can expose a Trebuchet actor with the same API.
+
+- App-side contract: `SurrealDBService`
+- Local concrete type: `LocalSurrealDBService` (wraps `SurrealDB`)
+- Distributed concrete type: your `@Trebuchet distributed actor` wrapper delegating to `SurrealDB`
+
+See:
+- `/Users/bri/dev/surrealdb-swift/Examples/TrebuchetIntegration.swift`
+- `/Users/bri/dev/surrealdb-swift/Sources/SurrealDB/Documentation.docc/Articles/TrebuchetIntegration.md`
 
 ### Storage Backends
 
@@ -465,7 +482,8 @@ Run the unit tests:
 swift test
 ```
 
-Run integration tests (requires running SurrealDB instance):
+Run integration tests (requires running SurrealDB instance).
+These are intentionally local-only and skipped in default CI runs:
 
 ```bash
 # Start SurrealDB

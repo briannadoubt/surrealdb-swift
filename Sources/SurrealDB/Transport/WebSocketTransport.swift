@@ -23,6 +23,8 @@ public final class WebSocketTransport: Transport, Sendable {
     // Live query notification stream
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
     private let notificationStream: AsyncStream<LiveQueryNotification>
+    private var eventContinuation: AsyncStream<TransportConnectionEvent>.Continuation?
+    private let eventStream: AsyncStream<TransportConnectionEvent>
 
     private var receiveTask: Task<Void, Never>?
     private var reconnectionTask: Task<Void, Never>?
@@ -50,6 +52,12 @@ public final class WebSocketTransport: Transport, Sendable {
             cont = continuation
         }
         self.notificationContinuation = cont
+
+        var eventCont: AsyncStream<TransportConnectionEvent>.Continuation?
+        self.eventStream = AsyncStream { continuation in
+            eventCont = continuation
+        }
+        self.eventContinuation = eventCont
     }
 
     public var config: TransportConfig {
@@ -69,6 +77,8 @@ public final class WebSocketTransport: Transport, Sendable {
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
         _isConnected = true
+        eventContinuation?.yield(.connected)
+        transportConfig.logger?.log(level: .info, message: "WebSocket connected", metadata: ["url": url.absoluteString])
 
         // Start receiving messages
         receiveTask = Task { @SurrealActor in
@@ -79,6 +89,8 @@ public final class WebSocketTransport: Transport, Sendable {
     public func disconnect() async throws(SurrealError) {
         _isConnected = false
         shouldReconnect = false
+        eventContinuation?.yield(.disconnected)
+        transportConfig.logger?.log(level: .info, message: "WebSocket disconnected", metadata: ["url": url.absoluteString])
 
         // Cancel reconnection task
         reconnectionTask?.cancel()
@@ -103,6 +115,7 @@ public final class WebSocketTransport: Transport, Sendable {
     }
 
     public func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
+        let start = Date()
         guard let task = webSocketTask, _isConnected else {
             throw SurrealError.notConnected
         }
@@ -110,8 +123,13 @@ public final class WebSocketTransport: Transport, Sendable {
         // Encode and send the request
         let data: Data
         do {
-            data = try encoder.encode(request)
+            data = try PayloadCodec.encode(
+                request,
+                as: transportConfig.payloadEncoding,
+                using: encoder
+            )
         } catch {
+            transportConfig.metrics?.record(metric: .requestFailures, value: 1, tags: ["transport": "websocket", "phase": "encode"])
             throw SurrealError.encodingError("Failed to encode request: \(error)")
         }
 
@@ -120,7 +138,7 @@ public final class WebSocketTransport: Transport, Sendable {
         // Send and wait for response
         // Note: Timeout is handled by URLSession configuration
         do {
-            return try await withCheckedThrowingContinuation { continuation in
+            let response = try await withCheckedThrowingContinuation { continuation in
                 pendingRequests[request.id] = continuation
 
                 Task {
@@ -129,11 +147,28 @@ public final class WebSocketTransport: Transport, Sendable {
                     } catch {
                         // Remove from pending and fail
                         if pendingRequests.removeValue(forKey: request.id) != nil {
+                            transportConfig.metrics?.record(
+                                metric: .requestFailures,
+                                value: 1,
+                                tags: ["transport": "websocket", "phase": "send"]
+                            )
                             continuation.resume(throwing: SurrealError.connectionError("Send failed: \(error)"))
                         }
                     }
                 }
             }
+            let durationMs = Date().timeIntervalSince(start) * 1000
+            transportConfig.metrics?.record(
+                metric: .requestCount,
+                value: 1,
+                tags: ["transport": "websocket", "method": request.method]
+            )
+            transportConfig.metrics?.record(
+                metric: .requestDurationMs,
+                value: durationMs,
+                tags: ["transport": "websocket", "method": request.method]
+            )
+            return response
         } catch let error as SurrealError {
             throw error
         } catch {
@@ -147,6 +182,10 @@ public final class WebSocketTransport: Transport, Sendable {
 
     public var notifications: AsyncStream<LiveQueryNotification> {
         get async { notificationStream }
+    }
+
+    public var connectionEvents: AsyncStream<TransportConnectionEvent> {
+        get async { eventStream }
     }
 
     // MARK: - Private
@@ -191,7 +230,12 @@ public final class WebSocketTransport: Transport, Sendable {
 
     private func handleMessage(data: Data) async {
         // Try to decode as JSON-RPC response first
-        if let response = try? decoder.decode(JSONRPCResponse.self, from: data),
+        if let response = try? PayloadCodec.decode(
+            JSONRPCResponse.self,
+            from: data,
+            preferred: transportConfig.payloadEncoding,
+            using: decoder
+        ),
            let id = response.id,
            let continuation = pendingRequests.removeValue(forKey: id) {
             continuation.resume(returning: response)
@@ -251,8 +295,29 @@ public final class WebSocketTransport: Transport, Sendable {
 
                 // Success - reset attempts
                 reconnectionAttempts = 0
+                eventContinuation?.yield(.reconnected(attempt: attempt))
+                transportConfig.metrics?.record(
+                    metric: .reconnectSuccess,
+                    value: 1,
+                    tags: ["transport": "websocket"]
+                )
+                transportConfig.logger?.log(
+                    level: .info,
+                    message: "WebSocket reconnected",
+                    metadata: ["attempt": "\(attempt)"]
+                )
                 return
             } catch {
+                transportConfig.metrics?.record(
+                    metric: .reconnectAttempts,
+                    value: 1,
+                    tags: ["transport": "websocket"]
+                )
+                transportConfig.logger?.log(
+                    level: .warning,
+                    message: "WebSocket reconnect attempt failed",
+                    metadata: ["attempt": "\(attempt)"]
+                )
                 if attempt == maxAttempts {
                     return
                 }
@@ -286,8 +351,29 @@ public final class WebSocketTransport: Transport, Sendable {
 
                 // Success - reset attempts
                 reconnectionAttempts = 0
+                eventContinuation?.yield(.reconnected(attempt: reconnectionAttempts))
+                transportConfig.metrics?.record(
+                    metric: .reconnectSuccess,
+                    value: 1,
+                    tags: ["transport": "websocket"]
+                )
+                transportConfig.logger?.log(
+                    level: .info,
+                    message: "WebSocket reconnected",
+                    metadata: ["attempt": "\(reconnectionAttempts)"]
+                )
                 return
             } catch {
+                transportConfig.metrics?.record(
+                    metric: .reconnectAttempts,
+                    value: 1,
+                    tags: ["transport": "websocket"]
+                )
+                transportConfig.logger?.log(
+                    level: .warning,
+                    message: "WebSocket reconnect attempt failed",
+                    metadata: ["attempt": "\(reconnectionAttempts)"]
+                )
                 // Exponential backoff
                 currentDelay = min(currentDelay * multiplier, maxDelay)
 

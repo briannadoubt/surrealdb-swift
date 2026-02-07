@@ -3,19 +3,46 @@ import Testing
 
 @Suite("Schema Generator Tests")
 struct SchemaGeneratorTests {
+    // swiftlint:disable identifier_name
     // MARK: - Test Models
 
-    struct TestUser: SurrealModel {
+    struct TestUser: SurrealModel, HasSchemaDescriptor {
         var id: RecordID?
         var name: String
         var email: String
         var age: Int
+
+        static let _schemaDescriptor = SchemaDescriptor(
+            tableName: "testuser",
+            fields: [
+                FieldDescriptor(name: "id", type: .record(table: "testuser"), isOptional: true),
+                FieldDescriptor(name: "name", type: .string),
+                FieldDescriptor(name: "email", type: .string),
+                FieldDescriptor(name: "age", type: .int),
+                FieldDescriptor(name: "nickname", type: .string, isOptional: true)
+            ]
+        )
     }
 
-    struct TestEdge: EdgeModel {
+    struct TestEdge: EdgeModel, HasSchemaDescriptor {
         typealias From = TestUser
         typealias To = TestUser
         var since: String
+
+        static let _schemaDescriptor = SchemaDescriptor(
+            tableName: "testedge",
+            fields: [
+                FieldDescriptor(name: "since", type: .string)
+            ],
+            isEdge: true,
+            edgeFrom: TestUser.tableName,
+            edgeTo: TestUser.tableName
+        )
+    }
+
+    struct MissingDescriptorModel: SurrealModel {
+        var id: RecordID?
+        var title: String
     }
 
     // MARK: - Table Schema Generation Tests
@@ -30,6 +57,10 @@ struct SchemaGeneratorTests {
         #expect(!statements.isEmpty)
         #expect(statements.contains(where: { $0.contains("DEFINE TABLE") }))
         #expect(statements.contains(where: { $0.contains("SCHEMAFULL") }))
+        #expect(statements.contains(where: { $0.contains("DEFINE FIELD name ON TABLE testuser TYPE string;") }))
+        #expect(statements.contains(where: { $0.contains("DEFINE FIELD age ON TABLE testuser TYPE int;") }))
+        #expect(statements.contains(where: { $0.contains("DEFINE FIELD nickname ON TABLE testuser TYPE string FLEXIBLE;") }))
+        #expect(!statements.contains(where: { $0.contains("DEFINE FIELD id ") }))
     }
 
     @Test("Generate table schema in schemaless mode")
@@ -72,6 +103,7 @@ struct SchemaGeneratorTests {
         #expect(statements.contains(where: { $0.contains("TYPE RELATION") }))
         #expect(statements.contains(where: { $0.contains("IN testuser") }))
         #expect(statements.contains(where: { $0.contains("OUT testuser") }))
+        #expect(statements.contains(where: { $0.contains("DEFINE FIELD since ON TABLE testedge TYPE string;") }))
     }
 
     @Test("Generate edge schema with drop")
@@ -109,6 +141,23 @@ struct SchemaGeneratorTests {
 
     // MARK: - Type Mapping Tests
 
+    @Test("Generate table schema fails without schema descriptor")
+    func testGenerateTableSchemaWithoutDescriptorFails() {
+        var thrownError: SurrealError?
+        do {
+            _ = try SchemaGenerator.generateTableSchema(for: MissingDescriptorModel.self, mode: .schemafull)
+        } catch {
+            thrownError = error
+        }
+
+        #expect(thrownError != nil)
+        if case .encodingError(let message) = thrownError {
+            #expect(message.contains("HasSchemaDescriptor"))
+        } else {
+            Issue.record("Expected encodingError for missing schema descriptor")
+        }
+    }
+
     @Test("Map Swift types to SurrealDB types")
     func testMapSwiftType() {
         #expect(SchemaGenerator.mapSwiftType("String") == "string")
@@ -121,4 +170,5 @@ struct SchemaGeneratorTests {
         #expect(SchemaGenerator.mapSwiftType("Array<String>") == "array")
         #expect(SchemaGenerator.mapSwiftType("Dictionary<String, Any>") == "object")
     }
+    // swiftlint:enable identifier_name
 }

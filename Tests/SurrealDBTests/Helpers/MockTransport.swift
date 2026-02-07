@@ -12,6 +12,8 @@ final class MockTransport: Transport {
 
     private var notificationContinuation: AsyncStream<LiveQueryNotification>.Continuation?
     private let notificationStream: AsyncStream<LiveQueryNotification>
+    private var eventContinuation: AsyncStream<TransportConnectionEvent>.Continuation?
+    private let eventStream: AsyncStream<TransportConnectionEvent>
 
     nonisolated init(config: TransportConfig = .default) {
         self.transportConfig = config
@@ -20,6 +22,12 @@ final class MockTransport: Transport {
             cont = continuation
         }
         self.notificationContinuation = cont
+
+        var events: AsyncStream<TransportConnectionEvent>.Continuation?
+        self.eventStream = AsyncStream { continuation in
+            events = continuation
+        }
+        self.eventContinuation = events
     }
 
     var config: TransportConfig {
@@ -28,6 +36,7 @@ final class MockTransport: Transport {
 
     func connect() async throws(SurrealError) {
         isConnectedInternal = true
+        eventContinuation?.yield(.connected)
     }
 
     func disconnect() async throws(SurrealError) {
@@ -35,6 +44,7 @@ final class MockTransport: Transport {
         sentRequests.removeAll()
         responseQueue.removeAll()
         notificationContinuation?.finish()
+        eventContinuation?.yield(.disconnected)
     }
 
     func send(_ request: JSONRPCRequest) async throws(SurrealError) -> JSONRPCResponse {
@@ -80,6 +90,10 @@ final class MockTransport: Transport {
         get async { notificationStream }
     }
 
+    var connectionEvents: AsyncStream<TransportConnectionEvent> {
+        get async { eventStream }
+    }
+
     // Test helpers
 
     func queueResponse(id: String, result: SurrealValue) {
@@ -102,6 +116,10 @@ final class MockTransport: Transport {
 
     func sendNotification(_ notification: LiveQueryNotification) {
         notificationContinuation?.yield(notification)
+    }
+
+    func emitConnectionEvent(_ event: TransportConnectionEvent) {
+        eventContinuation?.yield(event)
     }
 
     func lastRequest() -> JSONRPCRequest? {

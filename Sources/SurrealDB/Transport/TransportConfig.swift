@@ -11,6 +11,18 @@ public struct TransportConfig: Sendable {
     /// Reconnection policy.
     public let reconnectionPolicy: ReconnectionPolicy
 
+    /// Payload encoding format.
+    public let payloadEncoding: PayloadEncoding
+
+    /// Maximum HTTP connections per host for URLSession pooling.
+    public let httpConnectionPoolSize: Int
+
+    /// Optional logger for diagnostics.
+    public let logger: (any SurrealLogger)?
+
+    /// Optional metrics recorder.
+    public let metrics: (any SurrealMetricsRecorder)?
+
     /// Default configuration.
     public static let `default` = TransportConfig()
 
@@ -20,14 +32,26 @@ public struct TransportConfig: Sendable {
     ///   - requestTimeout: Timeout for individual requests in seconds (default: 30.0)
     ///   - connectionTimeout: Timeout for connection establishment in seconds (default: 10.0)
     ///   - reconnectionPolicy: Policy for automatic reconnection (default: exponential backoff)
+    ///   - payloadEncoding: Payload encoding format (default: `.json`)
+    ///   - httpConnectionPoolSize: Maximum HTTP connections per host (default: 8)
+    ///   - logger: Optional logger for diagnostics
+    ///   - metrics: Optional metrics recorder
     public init(
         requestTimeout: TimeInterval = 30.0,
         connectionTimeout: TimeInterval = 10.0,
-        reconnectionPolicy: ReconnectionPolicy = .exponentialBackoff()
+        reconnectionPolicy: ReconnectionPolicy = .exponentialBackoff(),
+        payloadEncoding: PayloadEncoding = .json,
+        httpConnectionPoolSize: Int = 8,
+        logger: (any SurrealLogger)? = nil,
+        metrics: (any SurrealMetricsRecorder)? = nil
     ) {
         self.requestTimeout = requestTimeout
         self.connectionTimeout = connectionTimeout
         self.reconnectionPolicy = reconnectionPolicy
+        self.payloadEncoding = payloadEncoding
+        self.httpConnectionPoolSize = max(1, httpConnectionPoolSize)
+        self.logger = logger
+        self.metrics = metrics
     }
 }
 

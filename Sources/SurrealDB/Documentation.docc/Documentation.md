@@ -71,8 +71,12 @@ SurrealDB Swift is a high-performance, native Swift client for [SurrealDB](https
 ### Advanced Features
 
 - <doc:AdvancedFeatures>
+- <doc:TrebuchetIntegration>
 - ``SurrealModel``
 - ``EdgeModel``
+- ``SurrealDBService``
+- ``TransportConfig``
+- ``PayloadEncoding``
 
 ### Security
 

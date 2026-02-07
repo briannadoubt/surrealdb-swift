@@ -160,34 +160,34 @@ let service2 = UserService(db: distributedDB)
 ## 📋 Implementation Roadmap
 
 ### Phase 1: Property Wrappers (Week 1)
-- [ ] `@ID` for record IDs
-- [ ] `@Relation` for relationships
-- [ ] `@Computed` for computed fields
-- [ ] Basic tests
+- [x] `@ID` for record IDs
+- [x] `@Relation` for relationships
+- [x] `@Computed` for computed fields
+- [x] Basic tests
 
 ### Phase 2: KeyPath Queries (Week 2)
-- [ ] KeyPath field extraction
-- [ ] Type-safe predicates
-- [ ] Operator overloading
-- [ ] Query builder integration
+- [x] KeyPath field extraction
+- [x] Type-safe predicates
+- [x] Operator overloading
+- [x] Query builder integration
 
 ### Phase 3: Graph Models (Week 3)
-- [ ] `SurrealModel` protocol
-- [ ] `EdgeModel` protocol
-- [ ] Relationship creation
-- [ ] Relationship loading
+- [x] `SurrealModel` protocol
+- [x] `EdgeModel` protocol
+- [x] Relationship creation
+- [x] Relationship loading
 
 ### Phase 4: Result Builders (Week 4)
-- [ ] `@QueryDSL` result builder
-- [ ] Query components
-- [ ] Graph traversal builder
-- [ ] Integration tests
+- [x] `@QueryDSL` result builder
+- [x] Query components
+- [x] Graph traversal builder
+- [x] Integration tests (local-only with `SURREALDB_TEST=1`)
 
 ### Phase 5: Trebuchet Support (Week 5)
-- [ ] `SurrealDBProtocol` extraction
+- [x] `SurrealDBService` protocol extraction
 - [ ] `DistributedSurrealDBService`
-- [ ] Serialization helpers
-- [ ] Documentation
+- [x] Serialization helpers
+- [x] Documentation
 
 ## ✅ Benefits
 

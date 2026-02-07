@@ -1,5 +1,12 @@
 import Foundation
 
+/// Lifecycle events emitted by transports.
+public enum TransportConnectionEvent: Sendable {
+    case connected
+    case disconnected
+    case reconnected(attempt: Int)
+}
+
 /// A transport mechanism for communicating with SurrealDB.
 ///
 /// Implementations include WebSocket and HTTP transports.
@@ -24,4 +31,7 @@ public protocol Transport: Sendable {
     ///
     /// For transports that don't support live queries (like HTTP), this returns an empty stream.
     var notifications: AsyncStream<LiveQueryNotification> { get async }
+
+    /// A stream of connection lifecycle events.
+    var connectionEvents: AsyncStream<TransportConnectionEvent> { get async }
 }
