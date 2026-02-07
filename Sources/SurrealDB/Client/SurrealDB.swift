@@ -1,4 +1,5 @@
 import Foundation
+// swiftlint:disable file_length
 
 /// The main client for interacting with SurrealDB.
 ///
@@ -21,6 +22,7 @@ public actor SurrealDB {
     private var authToken: String?
     internal var liveQueryStreams: [String: [AsyncStream<LiveQueryNotification>.Continuation]] = [:]
     private var notificationRouterTask: Task<Void, Never>?
+    private var connectionEventTask: Task<Void, Never>?
     internal var cache: SurrealCache?
     internal var liveQueryTables: [String: String] = [:]
 
@@ -102,12 +104,20 @@ public actor SurrealDB {
         notificationRouterTask = Task {
             await routeLiveQueryNotifications()
         }
+
+        // Monitor connection lifecycle for session restoration after reconnects
+        connectionEventTask?.cancel()
+        connectionEventTask = Task {
+            await observeConnectionEvents()
+        }
     }
 
     /// Disconnects from the SurrealDB server.
     public func disconnect() async throws(SurrealError) {
         notificationRouterTask?.cancel()
         notificationRouterTask = nil
+        connectionEventTask?.cancel()
+        connectionEventTask = nil
 
         // Finish all live query streams
         for (_, continuations) in liveQueryStreams {
@@ -137,6 +147,46 @@ public actor SurrealDB {
     public var isConnected: Bool {
         get async {
             await transport.isConnected
+        }
+    }
+
+    // MARK: - Reconnection Session Recovery
+
+    private func observeConnectionEvents() async {
+        let events = await transport.connectionEvents
+        for await event in events {
+            switch event {
+            case .connected, .disconnected:
+                continue
+            case .reconnected:
+                await restoreSessionAfterReconnect()
+            }
+        }
+    }
+
+    private func restoreSessionAfterReconnect() async {
+        let transportConfig = await transport.config
+
+        do {
+            if let authToken {
+                try await authenticate(token: authToken)
+            }
+
+            if let namespace = currentNamespace, let database = currentDatabase {
+                try await use(namespace: namespace, database: database)
+            }
+
+            transportConfig.logger?.log(
+                level: .info,
+                message: "Session restored after reconnect",
+                metadata: [:]
+            )
+        } catch {
+            transportConfig.logger?.log(
+                level: .error,
+                message: "Failed to restore session after reconnect",
+                metadata: ["error": "\(error)"]
+            )
         }
     }
 
@@ -575,3 +625,4 @@ public actor SurrealDB {
         }
     }
 }
+// swiftlint:enable file_length
